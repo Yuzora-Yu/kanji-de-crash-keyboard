@@ -301,3 +301,177 @@ legend { color: var(--muted); font-weight: 800; margin-bottom: 10px; font-size: 
   .battle-result-row { grid-template-columns:90px 1fr; }
   .battle-result-row small { grid-column:1/-1; text-align:left; }
 }
+
+/* v0.3.1: 1画面完結のゲームレイアウト */
+body.game-view {
+  height: 100dvh;
+  overflow: hidden;
+}
+body.game-view .topbar {
+  min-height: 46px;
+  padding-block: 4px;
+}
+body.game-view .icon-button {
+  width: 36px;
+  height: 36px;
+}
+body.game-view .site-footer {
+  display: none;
+}
+body.game-view main {
+  width: min(1160px, calc(100% - 16px));
+  height: calc(100dvh - 46px);
+}
+#gameScreen {
+  --game-gap: clamp(4px, .8dvh, 10px);
+  --key-gap-x: clamp(3px, .42vw, 6px);
+  --key-gap-y: clamp(3px, .55dvh, 7px);
+  --key-width: clamp(30px, 5.55vw, 66px);
+  --key-height: clamp(28px, 5.15dvh, 56px);
+}
+#gameScreen.active {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: clamp(5px, .9dvh, 10px) 0;
+  gap: var(--game-gap);
+  overflow: hidden;
+  animation: fade .18s ease;
+}
+#gameScreen .hud {
+  flex: 0 0 auto;
+  min-height: clamp(48px, 7.2dvh, 68px);
+  padding: clamp(5px, .9dvh, 10px) clamp(9px, 1.4vw, 16px);
+}
+#gameScreen .hud span { font-size: clamp(.56rem, 1.15dvh, .68rem); }
+#gameScreen .hud strong { font-size: clamp(.92rem, 2.2dvh, 1.25rem); }
+#gameScreen .hud-main strong { font-size: clamp(1.35rem, 3.6dvh, 2.35rem); }
+#gameScreen .duel-panel {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 0;
+  padding: clamp(5px, .8dvh, 10px) clamp(9px, 1.4vw, 16px);
+  gap: clamp(7px, 1.2vw, 16px);
+}
+#gameScreen .duel-side strong { font-size: clamp(1.15rem, 2.8dvh, 1.9rem); }
+#gameScreen .duel-vs {
+  width: clamp(32px, 5dvh, 44px);
+  height: clamp(32px, 5dvh, 44px);
+  font-size: clamp(.68rem, 1.4dvh, .9rem);
+}
+#gameScreen .duel-cpu-meta { margin-block: 2px 4px; }
+#gameScreen .mini-keyboard { gap: 2px; }
+#gameScreen .mini-key { height: clamp(5px, .85dvh, 8px); }
+#gameScreen .word-zone {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(58px, 1fr) auto auto;
+  align-content: stretch;
+}
+#gameScreen .difficulty-badge {
+  padding: clamp(2px, .45dvh, 5px) 10px;
+  font-size: clamp(.62rem, 1.25dvh, .75rem);
+}
+#gameScreen .instruction {
+  margin: clamp(2px, .45dvh, 6px) 0 clamp(4px, .7dvh, 9px);
+  font-size: clamp(.67rem, 1.45dvh, .84rem);
+  line-height: 1.25;
+}
+#gameScreen .word-cards {
+  min-height: 0;
+  gap: clamp(6px, 1vw, 13px);
+}
+#gameScreen .word-card {
+  height: 100%;
+  min-height: clamp(58px, 10.5dvh, 108px);
+  border-radius: clamp(11px, 1.7dvh, 18px);
+  padding: clamp(6px, 1.1dvh, 12px);
+  box-shadow: 0 clamp(4px, .8dvh, 8px) 0 #8c8c91, 0 10px 20px rgba(0,0,0,.2);
+}
+#gameScreen .word-card strong {
+  font-size: clamp(1.2rem, min(4vw, 4.8dvh), 3rem);
+  line-height: 1.08;
+}
+#gameScreen .input-row {
+  margin-top: clamp(5px, .9dvh, 11px);
+  gap: clamp(6px, 1vw, 11px);
+}
+#gameScreen .input-display {
+  min-height: clamp(38px, 6.1dvh, 56px);
+  font-size: clamp(1rem, 2.8dvh, 1.75rem);
+}
+#gameScreen .reroll-button {
+  min-height: clamp(38px, 6.1dvh, 56px);
+  padding-inline: clamp(10px, 1.7vw, 20px);
+}
+#gameScreen .feedback {
+  min-height: clamp(17px, 2.7dvh, 25px);
+  margin-top: clamp(2px, .45dvh, 6px);
+  font-size: clamp(.68rem, 1.45dvh, .88rem);
+  line-height: 1.2;
+}
+#gameScreen .keyboard-zone {
+  flex: 0 0 auto;
+  border-radius: clamp(12px, 2dvh, 20px);
+  padding: clamp(6px, 1dvh, 12px) clamp(5px, 1vw, 12px);
+}
+#gameScreen .keyboard-head {
+  margin-bottom: clamp(3px, .55dvh, 8px);
+  min-height: 16px;
+}
+#gameScreen .legend { gap: clamp(6px, 1.1vw, 13px); font-size: clamp(.58rem, 1.15dvh, .72rem); }
+#gameScreen .recovery-note { font-size: clamp(.58rem, 1.15dvh, .72rem); }
+#gameScreen .state-dot { width: clamp(7px, 1.15dvh, 10px); height: clamp(7px, 1.15dvh, 10px); }
+#gameScreen .keyboard { gap: var(--key-gap-y); }
+#gameScreen .key-row { gap: var(--key-gap-x); }
+#gameScreen .key {
+  width: var(--key-width);
+  height: var(--key-height);
+  border-radius: clamp(5px, 1dvh, 9px);
+  font-size: clamp(.66rem, 1.65dvh, 1rem);
+  box-shadow: 0 clamp(2px, .55dvh, 5px) 0 #8b8d96;
+}
+#gameScreen .key.wide {
+  width: calc(var(--key-width) * 2 + var(--key-gap-x));
+}
+#gameScreen .key .recover {
+  bottom: 1px;
+  font-size: clamp(.43rem, .9dvh, .56rem);
+}
+
+@media (max-height: 680px) {
+  body.game-view .topbar { min-height: 42px; padding-block: 2px; }
+  body.game-view .icon-button { width: 34px; height: 34px; }
+  body.game-view main { height: calc(100dvh - 42px); }
+  #gameScreen { --key-height: clamp(25px, 4.7dvh, 36px); --game-gap: 4px; }
+  #gameScreen .hud { min-height: 44px; }
+  #gameScreen .word-card { min-height: 54px; }
+  #gameScreen .keyboard-head { margin-bottom: 2px; }
+}
+
+@media (max-width: 720px) {
+  body.game-view main { width: calc(100% - 10px); }
+  #gameScreen { --key-width: clamp(27px, 8.65vw, 52px); --key-gap-x: 2px; }
+  #gameScreen .hud { grid-template-columns: repeat(5, 1fr); }
+  #gameScreen .hud-main { grid-column: 1 / -1; padding-bottom: 3px; }
+  #gameScreen .input-row { grid-template-columns: 1fr auto; }
+  #gameScreen .reroll-button { min-width: 88px; }
+  #gameScreen .keyboard-head { padding-inline: 3px; }
+}
+
+/* Topbarの実寸に追従して、ゲーム領域を残り高さへ収める */
+body.game-view #app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body.game-view .topbar { flex: 0 0 auto; }
+body.game-view main {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}

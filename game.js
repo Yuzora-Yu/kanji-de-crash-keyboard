@@ -15,6 +15,7 @@
     ['BACKSPACE','ENTER']
   ];
   const MAX_LIVES = 5;
+  const WORD_TARGET = 10;
   const RECOVERY_SECONDS = 10;
   const SCORE_LIMIT = 5;
   const CPU_CONFIG = {
@@ -344,8 +345,8 @@
     els.feedback.className = 'feedback ok';
     els.feedback.textContent = `正解：${word.word}（${matchedReading}） +${gain}｜入力${romanLen}字`;
     flashInput('success'); beep('correct');
-    if (state.mode === 'words' && state.correct >= 20) {
-      if (state.playKind === 'cpu') finishPlayerBattle('20語クリア'); else endGame('20語クリア');
+    if (state.mode === 'words' && state.correct >= WORD_TARGET) {
+      if (state.playKind === 'cpu') finishPlayerBattle('10語クリア'); else endGame('10語クリア');
       return;
     }
     drawWords(); updateAll();
@@ -408,7 +409,7 @@
       state.words = getBattleWordSet(state.correct, variant);
     } else {
       const source = window.KCK_WORDS[level] || [];
-      const desiredRank = state.mode === 'words' ? Math.min(5, 1 + Math.floor((state.correct / 20) * 5)) : 3;
+      const desiredRank = state.mode === 'words' ? Math.min(5, 1 + Math.floor((state.correct / WORD_TARGET) * 5)) : 3;
       let pool = source.filter(w => !state.recent.includes(w.word));
       const rankPool = pool.filter(w => Math.abs(w.rank - desiredRank) <= 2);
       if (rankPool.length >= 3) pool = rankPool;
@@ -422,7 +423,7 @@
     if (state.mode === 'time') return state.difficulty;
     const target = LEVELS.indexOf(state.difficulty);
     const start = Math.max(0, target - 2);
-    const progress = Math.min(1, state.correct / 19);
+    const progress = Math.min(1, state.correct / Math.max(1, WORD_TARGET - 1));
     const idx = Math.min(target, Math.round(start + (target - start) * Math.pow(progress, .8)));
     return LEVELS[idx];
   }
@@ -495,7 +496,7 @@
       els.hudMode.textContent = '30秒'; els.hudLabel.textContent = '残り時間'; els.hudValue.textContent = state.remaining.toFixed(1);
       els.hudLivesItem.hidden = true;
     } else {
-      els.hudMode.textContent = `${state.elapsed.toFixed(1)}秒`; els.hudLabel.textContent = 'クリア数'; els.hudValue.textContent = `${state.correct} / 20`;
+      els.hudMode.textContent = `${state.elapsed.toFixed(1)}秒`; els.hudLabel.textContent = 'クリア数'; els.hudValue.textContent = `${state.correct} / ${WORD_TARGET}`;
       els.hudLivesItem.hidden = false; els.hudLives.innerHTML = renderHearts(state.lives);
     }
     els.hudScore.textContent = state.score.toLocaleString('ja-JP');
@@ -580,14 +581,14 @@
   function chooseLevelForRound(round) {
     if (state.mode === 'time') return state.difficulty;
     const target = LEVELS.indexOf(state.difficulty), start = Math.max(0,target-2);
-    const progress = Math.min(1, round / 19);
+    const progress = Math.min(1, round / Math.max(1, WORD_TARGET - 1));
     return LEVELS[Math.min(target,Math.round(start+(target-start)*Math.pow(progress,.8)))];
   }
   function getBattleWordSet(round, variant=0) {
     const key = `${round}:${variant}`;
     if (state.battle.cache.has(key)) return state.battle.cache.get(key);
     const level = chooseLevelForRound(round), source = window.KCK_WORDS[level] || [];
-    const desiredRank = state.mode === 'words' ? Math.min(5,1+Math.floor((round/20)*5)) : 3;
+    const desiredRank = state.mode === 'words' ? Math.min(5,1+Math.floor((round/WORD_TARGET)*5)) : 3;
     let pool = source.filter(w => Math.abs(w.rank-desiredRank)<=2); if (pool.length<3) pool=source;
     const rand = mulberry32(hashString(`${state.battle.seed}|words|${key}|${level}`));
     const copy=pool.slice();
@@ -669,7 +670,7 @@
       const integrity=cpuIntegrity(cpu),mult=LEVEL_MULTIPLIERS[chooseLevelForRound(cpu.correct)];
       const gain=Math.round((100+plan.variant.length*12+integrity*1.2+(cpuBrokenCount(cpu)===0?80:0))*mult);
       cpu.score+=gain;cpu.correct++;cpu.status='正解';
-      if(state.mode==='words'&&cpu.correct>=20){finishCpuBattle('20語クリア');return;}
+      if(state.mode==='words'&&cpu.correct>=WORD_TARGET){finishCpuBattle('10語クリア');return;}
       cpuDrawWords();
     }else{
       cpu.mistakes++;cpu.score=Math.max(0,cpu.score-35);if(state.mode==='words')cpu.lives=Math.max(0,cpu.lives-1);cpu.status='ミス';
@@ -683,13 +684,13 @@
     cpu.decisionDelay-=dt;if(cpu.decisionDelay<=0)chooseCpuPlan();
   }
   function applyFinishBonus(participant){
-    if(state.mode==='words'&&participant.correct>=20){const timeBonus=Math.max(0,Math.round(12000-participant.finishTime*120));const noCrash=participant.crashes===0?3500:0;participant.score+=timeBonus+noCrash;}
+    if(state.mode==='words'&&participant.correct>=WORD_TARGET){const timeBonus=Math.max(0,Math.round(12000-participant.finishTime*120));const noCrash=participant.crashes===0?3500:0;participant.score+=timeBonus+noCrash;}
   }
   function finishPlayerBattle(reason){
     if(state.playerFinished)return;state.playerFinished=true;state.playerFinishTime=state.elapsed;state.playerResultReason=reason;state.resultReason=reason;state.finalIntegrity=getIntegrity();applyFinishBonus({
       get score(){return state.score},set score(v){state.score=v},correct:state.correct,finishTime:state.playerFinishTime,crashes:state.crashes
     });
-    document.body.classList.add('player-finished');state.input='';renderInput();els.feedback.className='feedback ok';els.feedback.textContent=reason==='20語クリア'?'完走！ CPUの終了を待っています。':'ゲームオーバー。CPUの終了を待っています。';checkBattleComplete();
+    document.body.classList.add('player-finished');state.input='';renderInput();els.feedback.className='feedback ok';els.feedback.textContent=reason==='10語クリア'?'完走！ CPUの終了を待っています。':'ゲームオーバー。CPUの終了を待っています。';checkBattleComplete();
   }
   function finishCpuBattle(reason){
     const cpu=state.battle.cpu;if(cpu.finished)return;cpu.finished=true;cpu.finishTime=cpu.elapsed;cpu.resultReason=reason;cpu.finalIntegrity=cpuIntegrity(cpu);applyFinishBonus(cpu);cpu.status=reason;checkBattleComplete();
@@ -722,9 +723,9 @@
   function battleDetail(correct,mistakes,crashes,time,reason){const t=state.mode==='words'?`・${Number(time||0).toFixed(2)}秒`:'';return`${correct}語・ミス${mistakes}・破損${crashes}${t}・${reason}`;}
   function updateDuelPanel(){
     const battle=state.playKind==='cpu'&&state.battle;els.duelPanel.hidden=!battle;if(!battle)return;const cpu=state.battle.cpu;
-    els.duelPlayerScore.textContent=state.score.toLocaleString('ja-JP');els.duelPlayerStatus.textContent=state.playerFinished?state.resultReason:`${state.correct}${state.mode==='words'?'/20':''}語`;
+    els.duelPlayerScore.textContent=state.score.toLocaleString('ja-JP');els.duelPlayerStatus.textContent=state.playerFinished?state.resultReason:`${state.correct}${state.mode==='words'?`/${WORD_TARGET}`:''}語`;
     els.duelCpuName.textContent=`CPU Lv${state.cpuLevel}`;els.duelCpuScore.textContent=cpu.score.toLocaleString('ja-JP');els.duelCpuStatus.textContent=cpu.status;
-    els.duelCpuProgress.textContent=`${cpu.correct}${state.mode==='words'?'/20':''}語`;els.duelCpuLives.textContent=state.mode==='words'?'♥'.repeat(cpu.lives)+'♡'.repeat(MAX_LIVES-cpu.lives):'';els.duelCpuCrashes.textContent=`破損 ${cpu.crashes}`;
+    els.duelCpuProgress.textContent=`${cpu.correct}${state.mode==='words'?`/${WORD_TARGET}`:''}語`;els.duelCpuLives.textContent=state.mode==='words'?'♥'.repeat(cpu.lives)+'♡'.repeat(MAX_LIVES-cpu.lives):'';els.duelCpuCrashes.textContent=`破損 ${cpu.crashes}`;
     LETTERS.forEach(k=>{const el=els.cpuMiniKeyboard.querySelector(`[data-cpu-key="${k}"]`);if(!el)return;el.className='mini-key';const stage=cpu.health[k].stage;if(stage===1)el.classList.add('warm');if(stage===2)el.classList.add('danger');if(stage===3)el.classList.add('broken');});
   }
 
@@ -732,7 +733,7 @@
     if (!state.active) return;
     state.active = false; state.paused = false; stopGameLoop(); closeModals();
     state.resultReason = reason; state.finalIntegrity = getIntegrity();
-    if (state.mode === 'words' && state.correct >= 20) {
+    if (state.mode === 'words' && state.correct >= WORD_TARGET) {
       const timeBonus = Math.max(0, Math.round(12000 - state.elapsed * 120));
       const noCrash = state.crashes === 0 ? 3500 : 0;
       state.score += timeBonus + noCrash;
@@ -742,7 +743,7 @@
   }
 
   function renderResult() {
-    const cleared = state.mode === 'words' && state.correct >= 20;
+    const cleared = state.mode === 'words' && state.correct >= WORD_TARGET;
     const battle = state.playKind === 'cpu';
     els.resultRank.classList.toggle('battle-rank', battle);
     els.resultTitle.textContent = state.resultReason;
@@ -780,23 +781,23 @@
   }
 
   function calculateRank() {
-    const base = state.mode === 'time' ? state.score : state.score + (state.correct >= 20 ? 3000 : 0);
+    const base = state.mode === 'time' ? state.score : state.score + (state.correct >= WORD_TARGET ? 3000 : 0);
     const target = state.mode === 'time' ? [1200,2200,3300,4600] : [3500,6500,9500,13000];
     const m = LEVEL_MULTIPLIERS[state.difficulty];
     const normalized = base / Math.max(1,m);
     return normalized >= target[3] ? 'S' : normalized >= target[2] ? 'A' : normalized >= target[1] ? 'B' : normalized >= target[0] ? 'C' : 'D';
   }
 
-  function scoresKey(mode,difficulty) { return `kck-scores-v2-${mode}-${difficulty}`; }
+  function scoresKey(mode,difficulty) { return mode === 'words' ? `kck-scores-v3-10words-${difficulty}` : `kck-scores-v2-${mode}-${difficulty}`; }
   function oldBestKey(mode,difficulty) { return `kck-best-v1-${mode}-${difficulty}`; }
   function loadScores(mode,difficulty) {
     let list = [];
     try { list = JSON.parse(storageGet(scoresKey(mode,difficulty))) || []; } catch { list = []; }
     if (!Array.isArray(list)) list = [];
-    if (!list.length) {
+    if (!list.length && mode === 'time') {
       try {
         const old = JSON.parse(storageGet(oldBestKey(mode,difficulty)));
-        if (old && Number.isFinite(old.score)) list = [{...old, mistakes:0, cleared:mode === 'time' || old.correct >= 20, reason:'旧記録'}];
+        if (old && Number.isFinite(old.score)) list = [{...old, mistakes:0, cleared:true, reason:'旧記録'}];
       } catch {}
     }
     return list.sort(compareScores).slice(0,SCORE_LIMIT);
@@ -809,7 +810,7 @@
   function saveScore() {
     const data = {
       score:state.score, time:Number(state.elapsed.toFixed(3)), correct:state.correct, crashes:state.crashes,
-      mistakes:state.mistakes, cleared:state.mode === 'time' || state.correct >= 20, reason:state.resultReason,
+      mistakes:state.mistakes, cleared:state.mode === 'time' || state.correct >= WORD_TARGET, reason:state.resultReason,
       date:new Date().toISOString()
     };
     const list = [...loadScores(state.mode,state.difficulty), data].sort(compareScores).slice(0,SCORE_LIMIT);
@@ -840,7 +841,7 @@
     const mode = selected('scoreMode');
     const difficulty = selected('scoreDifficulty');
     const list = loadScores(mode,difficulty);
-    els.highscoreModeLabel.textContent = mode === 'time' ? '30秒モード' : '20語モード';
+    els.highscoreModeLabel.textContent = mode === 'time' ? '30秒モード' : '10語モード';
     els.highscoreDifficultyLabel.textContent = LEVEL_LABELS[difficulty];
     els.highscoreCount.textContent = `${list.length} / ${SCORE_LIMIT}`;
     els.highscoreList.innerHTML = '';
@@ -850,14 +851,14 @@
       const date = record.date ? new Date(record.date).toLocaleDateString('ja-JP') : '-';
       const sub = mode === 'time'
         ? `正解 ${record.correct || 0}語・破損 ${record.crashes || 0}回・${date}`
-        : `${record.correct || 0}/20語・${Number(record.time || 0).toFixed(2)}秒・誤入力 ${record.mistakes || 0}回・${date}`;
+        : `${record.correct || 0}/${WORD_TARGET}語・${Number(record.time || 0).toFixed(2)}秒・誤入力 ${record.mistakes || 0}回・${date}`;
       li.innerHTML = `<span class="score-rank">${index + 1}</span><div><strong>${Number(record.score || 0).toLocaleString('ja-JP')}</strong><small>${escapeHtml(sub)}</small></div>`;
       els.highscoreList.appendChild(li);
     });
   }
 
   async function shareResult() {
-    const mode = state.mode === 'time' ? '30秒モード' : '20語モード';
+    const mode = state.mode === 'time' ? '30秒モード' : '10語モード';
     const versus = state.playKind === 'cpu' && state.battle
       ? `\nCPU Lv${state.cpuLevel}戦 ${battleOutcomeLabel()}｜YOU ${state.score.toLocaleString('ja-JP')} - CPU ${state.battle.cpu.score.toLocaleString('ja-JP')}`
       : '';
@@ -869,7 +870,7 @@
     const mode = selected('scoreMode');
     const difficulty = selected('scoreDifficulty');
     const list = loadScores(mode,difficulty);
-    const modeLabel = mode === 'time' ? '30秒モード' : '20語モード';
+    const modeLabel = mode === 'time' ? '30秒モード' : '10語モード';
     const text = `漢字 de クラッシュキーボード\nLOCAL TOP 5｜${modeLabel}・${LEVEL_LABELS[difficulty]}\n${list.map((r,i)=>`${i+1}. ${r.score.toLocaleString('ja-JP')}`).join(' / ') || 'まだ記録なし'}`;
     try {
       const blob = await createHighscoreImage(list, mode, difficulty);
@@ -895,7 +896,7 @@
       ctx.fillStyle = '#51e5b4'; ctx.font = '900 42px system-ui, sans-serif'; ctx.fillText('KANJI × KEYBOARD SURVIVAL', 80, 95);
       ctx.fillStyle = '#f6f3ea'; ctx.font = '900 76px system-ui, sans-serif'; ctx.fillText('漢字 de クラッシュキーボード', 80, 195);
       ctx.fillStyle = '#aab0c0'; ctx.font = '700 38px system-ui, sans-serif';
-      ctx.fillText(`LOCAL TOP 5｜${mode === 'time' ? '30秒モード' : '20語モード'}・${LEVEL_LABELS[difficulty]}`, 80, 260);
+      ctx.fillText(`LOCAL TOP 5｜${mode === 'time' ? '30秒モード' : '10語モード'}・${LEVEL_LABELS[difficulty]}`, 80, 260);
       for (let i=0;i<SCORE_LIMIT;i++) {
         const y = 350 + i*135;
         ctx.fillStyle = i === 0 ? '#173f36' : '#1c202c'; roundRect(ctx,80,y-66,1040,105,22); ctx.fill();
@@ -904,7 +905,7 @@
         if (r) {
           ctx.fillStyle = '#f6f3ea'; ctx.font = '900 48px system-ui, sans-serif'; ctx.fillText(Number(r.score).toLocaleString('ja-JP'), 210, y);
           ctx.fillStyle = '#aab0c0'; ctx.font = '600 26px system-ui, sans-serif';
-          const detail = mode === 'time' ? `正解 ${r.correct || 0}語　破損 ${r.crashes || 0}回` : `${r.correct || 0}/20語　${Number(r.time || 0).toFixed(2)}秒　誤入力 ${r.mistakes || 0}回`;
+          const detail = mode === 'time' ? `正解 ${r.correct || 0}語　破損 ${r.crashes || 0}回` : `${r.correct || 0}/${WORD_TARGET}語　${Number(r.time || 0).toFixed(2)}秒　誤入力 ${r.mistakes || 0}回`;
           ctx.fillText(detail, 560, y);
         } else {
           ctx.fillStyle = '#697083'; ctx.font = '700 34px system-ui, sans-serif'; ctx.fillText('NO RECORD', 210, y);
@@ -936,7 +937,8 @@
   function showScreen(name) {
     [els.titleScreen,els.battleScreen,els.cpuSetupScreen,els.gameScreen,els.resultScreen,els.highscoreScreen].forEach(s=>s.classList.remove('active'));
     ({title:els.titleScreen,battle:els.battleScreen,cpu:els.cpuSetupScreen,game:els.gameScreen,result:els.resultScreen,highscore:els.highscoreScreen}[name]).classList.add('active');
-    window.scrollTo({top:0,behavior:'smooth'});
+    document.body.classList.toggle('game-view', name === 'game');
+    window.scrollTo({top:0,behavior:name === 'game' ? 'auto' : 'smooth'});
   }
   function openModal(modal) {
     els.modalBackdrop.hidden=false; els.helpModal.hidden=true; modal.hidden=false;
