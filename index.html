@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#171923">
-  <meta name="description" content="漢字の読みを選んで打つ、キーボード破損型タイピングパズル。サーバー不要で遊べます。">
+  <meta name="description" content="漢字の読みを選んで打つ、キーボード破損型タイピングパズル。ソロ・CPU戦と、2〜8人のフレンド対戦に対応。">
   <title>漢字 de クラッシュキーボード</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
@@ -71,13 +71,74 @@
               <strong>CPU戦</strong>
               <span>Lv1〜5のCPUと1 VS 1</span>
             </button>
-            <button class="menu-tile coming-soon" type="button" disabled>
+            <button id="friendBattleButton" class="menu-tile" type="button">
               <strong>フレンド対戦</strong>
-              <span>2〜8人・ルームコード対応予定</span>
-              <em>COMING SOON</em>
+              <span>2〜8人・ルームコードで参加</span>
             </button>
           </div>
           <button id="battleBackButton" class="text-button menu-back" type="button">タイトルへ戻る</button>
+        </div>
+      </section>
+
+
+
+      <section id="friendSetupScreen" class="screen" aria-labelledby="friendSetupTitle">
+        <div class="online-setup-card panel">
+          <p class="eyebrow">FRIEND MATCH</p>
+          <h2 id="friendSetupTitle">フレンド対戦</h2>
+          <p class="menu-lead">ルームコードを共有して、同じ問題列で並走します。</p>
+          <div id="onlineServerNotice" class="online-notice" role="status"></div>
+          <div class="online-entry-grid">
+            <form id="createRoomForm" class="online-entry-card">
+              <h3>ルームを作る</h3>
+              <label class="field-label">表示名<input id="createPlayerName" maxlength="16" autocomplete="nickname" required></label>
+              <fieldset>
+                <legend>モード</legend>
+                <div class="segmented compact-segmented">
+                  <label><input type="radio" name="onlineCreateMode" value="time" checked><span><b>30秒</b><small>スコア勝負</small></span></label>
+                  <label><input type="radio" name="onlineCreateMode" value="words"><span><b>10語</b><small>完走＋スコア</small></span></label>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>難易度</legend>
+                <select id="createRoomDifficulty">
+                  <option value="beginner">初級</option><option value="intermediate">中級</option><option value="advanced">上級</option><option value="expert">超級</option><option value="oni">鬼</option>
+                </select>
+              </fieldset>
+              <label class="field-label">最大人数<select id="createRoomMaxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option></select></label>
+              <button id="createRoomButton" class="primary-button" type="submit">ルーム作成</button>
+            </form>
+            <form id="joinRoomForm" class="online-entry-card">
+              <h3>コードで参加</h3>
+              <label class="field-label">表示名<input id="joinPlayerName" maxlength="16" autocomplete="nickname" required></label>
+              <label class="field-label">ルームコード<input id="joinRoomCode" class="room-code-input" maxlength="6" autocapitalize="characters" autocomplete="off" placeholder="ABC234" required></label>
+              <button id="joinRoomButton" class="primary-button" type="submit">参加する</button>
+              <p class="online-small-note">自由チャットや対戦相手への妨害機能はありません。</p>
+            </form>
+          </div>
+          <button id="friendSetupBackButton" class="text-button menu-back" type="button">対戦メニューへ戻る</button>
+        </div>
+      </section>
+
+      <section id="onlineLobbyScreen" class="screen" aria-labelledby="onlineLobbyTitle">
+        <div class="online-lobby-card panel">
+          <p class="eyebrow">MATCH ROOM</p>
+          <h2 id="onlineLobbyTitle">対戦ロビー</h2>
+          <div class="room-code-box"><span>ROOM CODE</span><strong id="lobbyRoomCode">------</strong><button id="copyRoomCodeButton" type="button">コードをコピー</button><button id="copyInviteLinkButton" type="button">招待URLをコピー</button></div>
+          <div id="lobbyConnectionStatus" class="connection-status">接続中…</div>
+          <div class="lobby-settings-grid">
+            <div><span>モード</span><strong id="lobbyMode">30秒</strong></div>
+            <div><span>難易度</span><strong id="lobbyDifficulty">初級</strong></div>
+            <div><span>人数</span><strong id="lobbyPlayerCount">1 / 8</strong></div>
+          </div>
+          <ol id="lobbyPlayerList" class="lobby-player-list"></ol>
+          <p id="lobbyMessage" class="lobby-message" aria-live="polite"></p>
+          <div class="lobby-actions">
+            <button id="readyButton" class="secondary-button" type="button">準備完了</button>
+            <button id="startOnlineMatchButton" class="primary-button" type="button" hidden>対戦開始</button>
+            <button id="rematchRoomButton" class="primary-button" type="button" hidden>再戦準備へ</button>
+            <button id="leaveRoomButton" class="text-button" type="button">ルームを退出</button>
+          </div>
         </div>
       </section>
 
@@ -143,6 +204,13 @@
           </div>
         </section>
 
+        <section id="onlineDuelPanel" class="online-duel-panel panel" hidden aria-label="フレンド対戦状況">
+          <div class="online-duel-head"><strong id="onlineRoomLabel">ROOM ------</strong><span id="onlineSyncStatus">同期中</span></div>
+          <div id="onlinePlayerGrid" class="online-player-grid"></div>
+        </section>
+
+        <div id="onlineCountdown" class="online-countdown" hidden><span>START IN</span><strong id="onlineCountdownValue">3</strong></div>
+
         <section class="word-zone" aria-label="問題">
           <div class="difficulty-badge" id="currentDifficulty">初級</div>
           <p class="instruction">表示された3語のうち、読めるものをローマ字入力して Enter</p>
@@ -188,6 +256,11 @@
             <h3 id="battleResultHeading">対戦結果</h3>
             <div class="battle-result-row player"><span>YOU</span><strong id="battlePlayerScore">0</strong><small id="battlePlayerDetail"></small></div>
             <div class="battle-result-row cpu"><span id="battleCpuLabel">CPU Lv3</span><strong id="battleCpuScore">0</strong><small id="battleCpuDetail"></small></div>
+          </section>
+
+          <section id="onlineResult" class="online-result" hidden>
+            <h3 id="onlineResultHeading">フレンド対戦結果</h3>
+            <ol id="onlineResultList" class="online-result-list"></ol>
           </section>
           <section id="resultAnswers" class="result-answers" hidden>
             <h3>終了時に表示されていた3語</h3>
@@ -277,6 +350,8 @@
   </div>
 
   <script src="data/words.js"></script>
+  <script src="online-config.js"></script>
   <script src="game.js"></script>
+  <script src="online.js"></script>
 </body>
 </html>

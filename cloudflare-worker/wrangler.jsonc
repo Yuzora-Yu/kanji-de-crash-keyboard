@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kanji-crash-match-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-27",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MATCH_ROOMS",
+        "class_name": "MatchRoom"
+      }
+    ]
+  },
+  "exports": {
+    "MatchRoom": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:8000,http://127.0.0.1:8000,https://yuzora-yu.github.io",
+    "ROOM_TTL_MINUTES": "180"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

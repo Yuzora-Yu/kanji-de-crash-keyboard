@@ -84,8 +84,8 @@
 
   const $ = id => document.getElementById(id);
   const els = {
-    titleScreen:$('titleScreen'), battleScreen:$('battleScreen'), cpuSetupScreen:$('cpuSetupScreen'), gameScreen:$('gameScreen'), resultScreen:$('resultScreen'), highscoreScreen:$('highscoreScreen'),
-    startButton:$('startButton'), battleButton:$('battleButton'), cpuBattleButton:$('cpuBattleButton'), battleBackButton:$('battleBackButton'),
+    titleScreen:$('titleScreen'), battleScreen:$('battleScreen'), friendSetupScreen:$('friendSetupScreen'), onlineLobbyScreen:$('onlineLobbyScreen'), cpuSetupScreen:$('cpuSetupScreen'), gameScreen:$('gameScreen'), resultScreen:$('resultScreen'), highscoreScreen:$('highscoreScreen'),
+    startButton:$('startButton'), battleButton:$('battleButton'), cpuBattleButton:$('cpuBattleButton'), friendBattleButton:$('friendBattleButton'), battleBackButton:$('battleBackButton'),
     startCpuButton:$('startCpuButton'), cpuSetupBackButton:$('cpuSetupBackButton'), tutorialButton:$('tutorialButton'), modalStartButton:$('modalStartButton'),
     helpButton:$('helpButton'), homeButton:$('homeButton'), soundButton:$('soundButton'), aboutButton:$('aboutButton'),
     highscoreButton:$('highscoreButton'), resultHighscoreButton:$('resultHighscoreButton'), highscoreBackButton:$('highscoreBackButton'),
@@ -95,12 +95,14 @@
     hudMode:$('hudMode'), hudLabel:$('hudLabel'), hudValue:$('hudValue'), hudScore:$('hudScore'), hudCrashes:$('hudCrashes'), hudBest:$('hudBest'), hudBestLabel:$('hudBestLabel'), hudLives:$('hudLives'), hudLivesItem:$('hudLivesItem'),
     duelPanel:$('duelPanel'), duelPlayerScore:$('duelPlayerScore'), duelPlayerStatus:$('duelPlayerStatus'), duelCpuName:$('duelCpuName'),
     duelCpuScore:$('duelCpuScore'), duelCpuStatus:$('duelCpuStatus'), duelCpuProgress:$('duelCpuProgress'), duelCpuLives:$('duelCpuLives'), duelCpuCrashes:$('duelCpuCrashes'), cpuMiniKeyboard:$('cpuMiniKeyboard'),
+    onlineDuelPanel:$('onlineDuelPanel'), onlineRoomLabel:$('onlineRoomLabel'), onlineSyncStatus:$('onlineSyncStatus'), onlineCountdown:$('onlineCountdown'), onlineCountdownValue:$('onlineCountdownValue'),
     currentDifficulty:$('currentDifficulty'),
     modalBackdrop:$('modalBackdrop'), helpModal:$('helpModal'),
     resultTitle:$('resultTitle'), resultRank:$('resultRank'), resultMainLabel:$('resultMainLabel'), resultMainValue:$('resultMainValue'),
     resultCorrect:$('resultCorrect'), resultMistakes:$('resultMistakes'), resultCrashes:$('resultCrashes'), resultIntegrity:$('resultIntegrity'), resultComment:$('resultComment'),
     resultAnswers:$('resultAnswers'), resultAnswerList:$('resultAnswerList'), battleResult:$('battleResult'), battleResultHeading:$('battleResultHeading'),
     battlePlayerScore:$('battlePlayerScore'), battlePlayerDetail:$('battlePlayerDetail'), battleCpuLabel:$('battleCpuLabel'), battleCpuScore:$('battleCpuScore'), battleCpuDetail:$('battleCpuDetail'),
+    onlineResult:$('onlineResult'), onlineResultHeading:$('onlineResultHeading'), onlineResultList:$('onlineResultList'),
     retryButton:$('retryButton'), shareButton:$('shareButton'), backButton:$('backButton'),
     highscoreModeLabel:$('highscoreModeLabel'), highscoreDifficultyLabel:$('highscoreDifficultyLabel'), highscoreCount:$('highscoreCount'),
     highscoreList:$('highscoreList'), highscoreEmpty:$('highscoreEmpty')
@@ -123,7 +125,7 @@
       input:'', pendingUsed:new Set(), wordUsed:new Set(), words:[], recent:[],
       score:0, correct:0, mistakes:0, crashes:0, rerolls:1, lives:MAX_LIVES,
       elapsed:0, remaining:30, finalIntegrity:100, resultReason:'', lastActualLevel:'beginner',
-      playerFinished:false, playerFinishTime:0, playerResultReason:'', battle:null
+      playerFinished:false, playerFinishTime:0, playerResultReason:'', battle:null, onlineStandings:[], onlineCountdownTimer:null
     };
   }
 
@@ -142,19 +144,25 @@
     els.startButton.addEventListener('click', startGame);
     els.battleButton.addEventListener('click', () => showScreen('battle'));
     els.cpuBattleButton.addEventListener('click', openCpuSetup);
+    els.friendBattleButton.addEventListener('click', () => window.KCKOnline?.open());
     els.battleBackButton.addEventListener('click', () => showScreen('title'));
     els.startCpuButton.addEventListener('click', startCpuBattle);
     els.cpuSetupBackButton.addEventListener('click', () => showScreen('battle'));
     els.retryButton.addEventListener('click', retryGame);
-    els.backButton.addEventListener('click', () => showScreen(state.playKind === 'cpu' ? 'cpu' : 'title'));
+    els.backButton.addEventListener('click', () => {
+      if (state.playKind === 'online') { window.KCKOnline?.returnToLobby(); return; }
+      showScreen(state.playKind === 'cpu' ? 'cpu' : 'title');
+    });
     els.highscoreButton.addEventListener('click', () => openHighscores('title'));
     els.resultHighscoreButton.addEventListener('click', () => openHighscores('result'));
     els.highscoreBackButton.addEventListener('click', () => showScreen(highscoreReturnScreen));
     els.shareHighscoresButton.addEventListener('click', shareHighscores);
     document.querySelectorAll('input[name="scoreMode"], input[name="scoreDifficulty"]').forEach(input => input.addEventListener('change', renderHighscores));
     els.homeButton.addEventListener('click', () => {
-      if (state.active && !confirm('現在のゲームを終了してタイトルへ戻りますか？')) return;
-      stopGameLoop(); state.active = false; closeModals(); showScreen('title');
+      if ((state.active || state.playKind === 'online') && !confirm('現在のゲームまたは対戦ルームを終了してタイトルへ戻りますか？')) return;
+      stopGameLoop(); clearOnlineCountdown(); state.active = false; closeModals();
+      if (state.playKind === 'online') window.KCKOnline?.leaveRoom({silent:true});
+      showScreen('title');
     });
     els.helpButton.addEventListener('click', () => openModal(els.helpModal));
     els.tutorialButton.addEventListener('click', () => openModal(els.helpModal));
@@ -205,6 +213,7 @@
     stopGameLoop();
     state = freshState();
     state.playKind = 'solo';
+    clearOnlineCountdown(); els.onlineDuelPanel.hidden = true;
     state.mode = selected('mode');
     state.difficulty = selected('difficulty');
     state.remaining = 30;
@@ -234,6 +243,7 @@
     stopGameLoop();
     state = freshState();
     state.playKind = 'cpu';
+    clearOnlineCountdown(); els.onlineDuelPanel.hidden = true;
     state.mode = selected('cpuMode');
     state.difficulty = selected('cpuDifficulty');
     state.cpuLevel = Number(selected('cpuLevel'));
@@ -254,20 +264,29 @@
     beep('start');
   }
 
-  function retryGame() { if (lastPlayKind === 'cpu') startCpuBattle(); else startGame(); }
+  function retryGame() { if (lastPlayKind === 'online') { window.KCKOnline?.returnToLobby(); } else if (lastPlayKind === 'cpu') startCpuBattle(); else startGame(); }
 
   function gameLoop(now) {
     if (!state.active) return;
-    const dt = Math.min(.1, (now - lastFrame) / 1000 || 0); lastFrame = now;
+    const frameDt = (now - lastFrame) / 1000 || 0; lastFrame = now;
+    const dt = state.playKind === 'online' ? Math.min(RECOVERY_SECONDS, Math.max(0, frameDt)) : Math.min(.1, Math.max(0, frameDt));
     if (!state.paused) {
-      state.elapsed += dt;
-      recoverTimedKeys(dt);
+      if (state.playKind === 'online' && state.battle?.localStartAt) {
+        const previousElapsed = state.elapsed;
+        state.elapsed = Math.max(0, (Date.now() - state.battle.localStartAt) / 1000);
+        recoverTimedKeys(Math.max(0, state.elapsed - previousElapsed));
+      } else {
+        state.elapsed += dt;
+        recoverTimedKeys(dt);
+      }
       if (state.playKind === 'cpu') updateCpu(dt);
       if (!state.active) return;
       if (state.mode === 'time') {
-        state.remaining = Math.max(0, state.remaining - dt);
+        state.remaining = state.playKind === 'online' ? Math.max(0, 30 - state.elapsed) : Math.max(0, state.remaining - dt);
         if (state.remaining <= 0) {
-          if (state.playKind === 'cpu') endTimedBattle(); else endGame('TIME UP');
+          if (state.playKind === 'cpu') endTimedBattle();
+          else if (state.playKind === 'online') finishPlayerOnline('TIME UP');
+          else endGame('TIME UP');
           return;
         }
       }
@@ -361,7 +380,7 @@
     els.feedback.textContent = `正解：${word.word}（${matchedReading}） +${gain}｜入力${romanLen}字`;
     flashInput('success'); beep('correct');
     if (state.mode === 'words' && state.correct >= WORD_TARGET) {
-      if (state.playKind === 'cpu') finishPlayerBattle('10語クリア'); else endGame('10語クリア');
+      if (state.playKind === 'cpu') finishPlayerBattle('10語クリア'); else if (state.playKind === 'online') finishPlayerOnline('10語クリア'); else endGame('10語クリア');
       return;
     }
     drawWords(); updateAll();
@@ -379,7 +398,7 @@
       : `読みが違います（入力：${state.input}）`;
     flashInput('error'); beep('error'); updateAll();
     if (state.mode === 'words' && state.lives <= 0) {
-      if (state.playKind === 'cpu') finishPlayerBattle('GAME OVER'); else endGame('GAME OVER');
+      if (state.playKind === 'cpu') finishPlayerBattle('GAME OVER'); else if (state.playKind === 'online') finishPlayerOnline('GAME OVER'); else endGame('GAME OVER');
     }
   }
 
@@ -419,7 +438,7 @@
   function drawWords() {
     state.input = ''; state.pendingUsed.clear(); state.wordUsed.clear(); renderInput();
     const level = chooseActualLevel(); state.lastActualLevel = level;
-    if (state.playKind === 'cpu') {
+    if (state.playKind === 'cpu' || state.playKind === 'online') {
       const variant = state.battle.playerRerollRound === state.correct ? 1 : 0;
       state.words = getBattleWordSet(state.correct, variant);
     } else {
@@ -553,7 +572,7 @@
   function useReroll() {
     if (!state.active || state.rerolls <= 0) return;
     state.rerolls--;
-    if (state.playKind === 'cpu') state.battle.playerRerollRound = state.correct;
+    if (state.playKind === 'cpu' || state.playKind === 'online') state.battle.playerRerollRound = state.correct;
     drawWords(); updateAll(); beep('reroll');
   }
 
@@ -608,6 +627,8 @@
     els.hudCrashes.textContent = state.crashes;
     if (state.playKind === 'cpu') {
       els.hudBestLabel.textContent = 'CPU LV'; els.hudBest.textContent = state.cpuLevel;
+    } else if (state.playKind === 'online') {
+      els.hudBestLabel.textContent = 'ROOM'; els.hudBest.textContent = state.battle?.roomCode || '-';
     } else {
       els.hudBestLabel.textContent = 'BEST';
       const best = loadScores(state.mode, state.difficulty)[0]; els.hudBest.textContent = best ? best.score.toLocaleString('ja-JP') : '-';
@@ -827,6 +848,141 @@
     LETTERS.forEach(k=>{const el=els.cpuMiniKeyboard.querySelector(`[data-cpu-key="${k}"]`);if(!el)return;el.className='mini-key';const stage=cpu.health[k].stage;if(stage===1)el.classList.add('warm');if(stage===2)el.classList.add('danger');if(stage===3)el.classList.add('broken');});
   }
 
+
+  function clearOnlineCountdown() {
+    if (state.onlineCountdownTimer) clearInterval(state.onlineCountdownTimer);
+    state.onlineCountdownTimer = null;
+    if (els.onlineCountdown) els.onlineCountdown.hidden = true;
+  }
+
+  function prepareOnlineMatch(match) {
+    closeModals(); stopGameLoop(); clearOnlineCountdown();
+    state = freshState();
+    state.playKind = 'online';
+    state.mode = match.settings.mode;
+    state.difficulty = match.settings.difficulty;
+    state.remaining = 30;
+    state.active = false;
+    state.battle = {
+      seed:match.seed, cache:new Map(), playerRerollRound:-1,
+      roomCode:match.roomCode, localPlayerId:match.playerId,
+      localStartAt:Number(match.localStartAt || Date.now()), serverStartAt:Number(match.startAt || 0)
+    };
+    lastPlayKind = 'online';
+    document.body.classList.remove('player-finished');
+    els.duelPanel.hidden = true;
+    els.onlineDuelPanel.hidden = false;
+    els.onlineRoomLabel.textContent = `ROOM ${match.roomCode}`;
+    els.onlineSyncStatus.textContent = '開始待機';
+    showScreen('game');
+    drawWords(); updateAll();
+
+    const start = () => {
+      if (state.playKind !== 'online' || state.active || state.playerFinished) return;
+      clearOnlineCountdown();
+      state.elapsed = Math.max(0, (Date.now() - state.battle.localStartAt) / 1000);
+      state.remaining = Math.max(0, 30 - state.elapsed);
+      state.active = true;
+      lastFrame = performance.now();
+      rafId = requestAnimationFrame(gameLoop);
+      els.onlineSyncStatus.textContent = '接続中';
+      beep('start');
+      window.KCKOnline?.beginProgressSync();
+    };
+
+    const updateCountdown = () => {
+      const ms = state.battle.localStartAt - Date.now();
+      if (ms <= 0) { start(); return; }
+      els.onlineCountdown.hidden = false;
+      els.onlineCountdownValue.textContent = String(Math.max(1, Math.ceil(ms / 1000)));
+    };
+    updateCountdown();
+    state.onlineCountdownTimer = setInterval(updateCountdown, 100);
+  }
+
+  function getOnlineProgress() {
+    const keyStages = {};
+    WEAR_KEYS.forEach(k => { keyStages[k] = state.health[k].stage; });
+    let status = state.playerFinished ? state.playerResultReason : state.input ? `入力中 ${state.input.length}字` : '選択中';
+    if (!state.playerFinished && state.words.length && !state.words.some(isWordTypeable)) status = '復活待ち';
+    return {
+      score:state.score, correct:state.correct, mistakes:state.mistakes, crashes:state.crashes,
+      lives:state.lives, integrity:getIntegrity(), elapsed:Number(state.elapsed.toFixed(3)), status, keyStages
+    };
+  }
+
+  function finishPlayerOnline(reason) {
+    if (state.playKind !== 'online' || state.playerFinished) return;
+    state.playerFinished = true;
+    state.playerFinishTime = state.elapsed;
+    state.playerResultReason = reason;
+    state.resultReason = reason;
+    state.finalIntegrity = getIntegrity();
+    if (state.mode === 'words' && state.correct >= WORD_TARGET) {
+      const holder = {
+        get score(){ return state.score; }, set score(value){ state.score = value; },
+        correct:state.correct, finishTime:state.playerFinishTime, crashes:state.crashes
+      };
+      applyFinishBonus(holder);
+    }
+    stopGameLoop();
+    document.body.classList.add('player-finished');
+    state.input = ''; renderInput(); updateHud();
+    els.feedback.className = 'feedback ok';
+    els.feedback.textContent = reason === '10語クリア' ? '完走！ ほかのプレイヤーの終了を待っています。' : `${reason}。ほかのプレイヤーの終了を待っています。`;
+    window.KCKOnline?.finishMatch(reason, getOnlineProgress());
+  }
+
+  function finishOnlineMatch(standings, room) {
+    if (state.playKind !== 'online') return;
+    clearOnlineCountdown(); stopGameLoop(); closeModals();
+    state.active = false;
+    state.onlineStandings = Array.isArray(standings) ? standings : [];
+    const mine = state.onlineStandings.find(item => item.playerId === state.battle?.localPlayerId);
+    if (mine) {
+      state.score = Number(mine.score || 0);
+      state.correct = Number(mine.correct || 0);
+      state.mistakes = Number(mine.mistakes || 0);
+      state.crashes = Number(mine.crashes || 0);
+      state.playerFinishTime = Number(mine.finishTime || state.elapsed || 0);
+      state.playerResultReason = mine.finishReason || state.playerResultReason || '終了';
+    }
+    state.resultReason = `フレンド対戦 ${onlineRankText()}`;
+    state.finalIntegrity = getIntegrity();
+    renderResult(); showScreen('result'); beep('finish');
+  }
+
+  function onlineRankText() {
+    const mine = state.onlineStandings.find(item => item.playerId === state.battle?.localPlayerId);
+    return mine ? `${mine.rank}位` : '-';
+  }
+
+  function onlineBattleComment() {
+    const mine = state.onlineStandings.find(item => item.playerId === state.battle?.localPlayerId);
+    if (!mine) return '同じ問題列で競うフレンド対戦が終了しました。';
+    if (mine.rank === 1) return '1位。同じ問題でも、読みとキー管理の選択で差がつきました。';
+    return `${mine.rank}位。相手の進行と、自分のキー配分を見比べて再戦できます。`;
+  }
+
+  function renderOnlineResult() {
+    const online = state.playKind === 'online' && state.onlineStandings.length;
+    els.onlineResult.hidden = !online;
+    els.onlineResultList.innerHTML = '';
+    if (!online) return;
+    els.onlineResultHeading.textContent = `${state.battle?.roomCode || ''}｜最終順位`;
+    state.onlineStandings.forEach(item => {
+      const li = document.createElement('li');
+      if (item.playerId === state.battle?.localPlayerId) li.classList.add('self');
+      const detail = `${item.correct}語・ミス${item.mistakes}・破損${item.crashes}${state.mode === 'words' ? `・${Number(item.finishTime || 0).toFixed(2)}秒` : ''}`;
+      li.innerHTML = `<span class="place">${item.rank}</span><span class="result-player"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(detail)}</small></span><span class="result-score">${Number(item.score || 0).toLocaleString('ja-JP')}</span>`;
+      els.onlineResultList.appendChild(li);
+    });
+  }
+
+  function setOnlineSyncStatus(text) {
+    if (els.onlineSyncStatus) els.onlineSyncStatus.textContent = text || '';
+  }
+
   function endGame(reason) {
     if (!state.active) return;
     state.active = false; state.paused = false; stopGameLoop(); closeModals();
@@ -842,7 +998,7 @@
 
   function renderResult() {
     const cleared = state.mode === 'words' && state.correct >= WORD_TARGET;
-    const battle = state.playKind === 'cpu';
+    const battle = state.playKind === 'cpu' || state.playKind === 'online';
     els.resultRank.classList.toggle('battle-rank', battle);
     els.resultTitle.textContent = state.resultReason;
     els.resultMainLabel.textContent = 'SCORE';
@@ -851,19 +1007,21 @@
     els.resultMistakes.textContent = state.mistakes;
     els.resultCrashes.textContent = state.crashes;
     els.resultIntegrity.textContent = `${state.finalIntegrity}%`;
-    const rank = calculateRank(); els.resultRank.textContent = battle ? battleRankText() : rank;
+    const rank = calculateRank(); els.resultRank.textContent = state.playKind === 'online' ? onlineRankText() : battle ? battleRankText() : rank;
     const resultElapsed = battle ? state.playerFinishTime : state.elapsed;
     const timeText = state.mode === 'words' ? `経過 ${resultElapsed.toFixed(2)}秒。` : '';
     let comment = state.crashes === 0 ? 'ノークラッシュ。キーボード管理が完璧です。' : state.crashes <= 2 ? '危険なキーを逃がしながら、さらに伸ばせそうです。' : '派手に壊れました。次は同じ母音の連続使用に注意。';
     if (!cleared && state.mode === 'words') comment = '5回の誤入力でゲームオーバー。読める語と、正確に打てる語の見極めが重要です。';
-    if (battle) comment = battleComment();
+    if (state.playKind === 'online') comment = onlineBattleComment(); else if (battle) comment = battleComment();
     els.resultComment.textContent = timeText + comment;
     const playerReason = battle ? state.playerResultReason : state.resultReason;
     const showAnswers = (!cleared && (playerReason.includes('TIME UP') || playerReason.includes('GAME OVER'))) || (battle && state.mode === 'time');
     renderResultAnswers(showAnswers);
     renderBattleResult();
+    renderOnlineResult();
     els.resultHighscoreButton.hidden = battle;
-    els.backButton.textContent = battle ? 'CPU戦設定へ戻る' : '設定へ戻る';
+    els.backButton.textContent = state.playKind === 'online' ? '対戦ロビーへ戻る' : battle ? 'CPU戦設定へ戻る' : '設定へ戻る';
+    els.retryButton.hidden = state.playKind === 'online';
   }
 
   function renderResultAnswers(show) {
@@ -1033,18 +1191,20 @@
   function downloadBlob(blob,name) { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
 
   function showScreen(name) {
-    [els.titleScreen,els.battleScreen,els.cpuSetupScreen,els.gameScreen,els.resultScreen,els.highscoreScreen].forEach(s=>s.classList.remove('active'));
-    ({title:els.titleScreen,battle:els.battleScreen,cpu:els.cpuSetupScreen,game:els.gameScreen,result:els.resultScreen,highscore:els.highscoreScreen}[name]).classList.add('active');
+    [els.titleScreen,els.battleScreen,els.friendSetupScreen,els.onlineLobbyScreen,els.cpuSetupScreen,els.gameScreen,els.resultScreen,els.highscoreScreen].forEach(s=>s?.classList.remove('active'));
+    const target=({title:els.titleScreen,battle:els.battleScreen,friend:els.friendSetupScreen,lobby:els.onlineLobbyScreen,cpu:els.cpuSetupScreen,game:els.gameScreen,result:els.resultScreen,highscore:els.highscoreScreen}[name]);
+    target?.classList.add('active');
     document.body.classList.toggle('game-view', name === 'game');
+    document.body.classList.toggle('online-match', name === 'game' && state.playKind === 'online');
     window.scrollTo({top:0,behavior:name === 'game' ? 'auto' : 'smooth'});
   }
   function openModal(modal) {
     els.modalBackdrop.hidden=false; els.helpModal.hidden=true; modal.hidden=false;
-    if (state.active) state.paused=true;
+    if (state.active && state.playKind !== 'online') state.paused=true;
   }
   function closeModals() {
     els.modalBackdrop.hidden=true; els.helpModal.hidden=true;
-    if (state.active) { state.paused=false; lastFrame=performance.now(); }
+    if (state.active && state.playKind !== 'online') { state.paused=false; lastFrame=performance.now(); }
   }
 
   function romajiToHiragana(input) {
@@ -1124,6 +1284,15 @@
   function storageGet(key) { try { return window.localStorage.getItem(key); } catch { return null; } }
   function storageSet(key, value) { try { window.localStorage.setItem(key, value); } catch {} }
   function escapeHtml(s) { return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+
+  window.KCK_GAME_API = Object.freeze({
+    showScreen,
+    prepareOnlineMatch,
+    finishOnlineMatch,
+    getOnlineProgress,
+    setOnlineSyncStatus,
+    getState:()=>state
+  });
 
   window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores, hashString, mulberry32, wordTypingProfile, wordSetBalanceScore, chooseBalancedWordSet, desiredRanksFor, filterPoolByRank, getState:()=>state });
   init();
