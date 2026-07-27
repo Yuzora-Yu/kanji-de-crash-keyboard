@@ -258,9 +258,9 @@
 
     const integrity = getIntegrity();
     const actualLevel = state.lastActualLevel;
-    // 入力方式の長短（shi/siなど）ではなく、正解した読みの標準ローマ字長で加点する。
-    const canonicalRomaji = kanaToRomaji(matchedReading);
-    const romanLen = canonicalRomaji.length;
+    // 実際に確定した入力数を採点する。shi / si などの打ち方で得点と摩耗対象が変わる。
+    const submittedRomaji = state.input.toLowerCase().replace(/[^a-z]/g, '');
+    const romanLen = submittedRomaji.length;
     const lengthBonus = romanLen * 12;
     const mult = LEVEL_MULTIPLIERS[actualLevel];
     const gain = Math.round((100 + lengthBonus + integrity * 1.2 + (countBroken() === 0 ? 80 : 0)) * mult);
@@ -269,7 +269,7 @@
     state.recent.push(word.word); if (state.recent.length > 24) state.recent.shift();
     state.input = ''; state.pendingUsed.clear(); state.wordUsed.clear();
     els.feedback.className = 'feedback ok';
-    els.feedback.textContent = `正解：${word.word}（${matchedReading}） +${gain}｜ローマ字${romanLen}字`;
+    els.feedback.textContent = `正解：${word.word}（${matchedReading}） +${gain}｜入力${romanLen}字`;
     flashInput('success'); beep('correct');
     if (state.mode === 'words' && state.correct >= 20) { endGame('20語クリア'); return; }
     drawWords(); updateAll();
