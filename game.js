@@ -20,6 +20,19 @@
   const SCORE_LIMIT = 5;
   const VOWELS = new Set(['a','i','u','e','o']);
   const SHORT_WORD_MAX = 10;
+  // 10語モードは、選択した級の中でrankを段階的に上げる。
+  // 超級は1〜3語目rank 3、4〜9語目rank 4、10語目rank 5。
+  // 鬼は最初の3語をrank 4、その後をrank 5とする。
+  const WORD_RANK_SCHEDULES = Object.freeze({
+    beginner:     [1,1,1,1,1,1,1,2,2,2],
+    intermediate: [1,1,1,2,2,2,2,2,3,3],
+    advanced:     [2,2,2,3,3,3,3,3,3,4],
+    expert:       [3,3,3,4,4,4,4,4,4,5],
+    oni:          [4,4,4,5,5,5,5,5,5,5]
+  });
+  const TIME_RANK_BANDS = Object.freeze({
+    beginner:[1,2], intermediate:[1,2,3], advanced:[2,3], expert:[3,4], oni:[4,5]
+  });
   const CPU_CONFIG = {
     1:{cps:2.6,reaction:[.95,1.55],accuracy:.78,knowledge:.82,difficultyPenalty:.12,rankPenalty:.05,strategy:1},
     2:{cps:3.8,reaction:[.70,1.20],accuracy:.86,knowledge:.89,difficultyPenalty:.09,rankPenalty:.04,strategy:2},
@@ -411,9 +424,8 @@
       state.words = getBattleWordSet(state.correct, variant);
     } else {
       const source = window.KCK_WORDS[level] || [];
-      const desiredRank = desiredRankFor(level, state.correct);
       let pool = source.filter(w => !state.recent.includes(w.word));
-      pool = filterPoolByRank(pool, source, level, desiredRank);
+      pool = filterPoolByRank(pool, source, level, state.correct);
       state.words = chooseBalancedWordSet(pool.length >= 3 ? pool : source, Math.random);
     }
     els.currentDifficulty.textContent = LEVEL_LABELS[level];
@@ -421,31 +433,37 @@
   }
 
   function chooseActualLevel() {
-    if (state.mode === 'time' || state.difficulty === 'oni') return state.difficulty;
-    const target = LEVELS.indexOf(state.difficulty);
-    const start = Math.max(0, target - 2);
-    const progress = Math.min(1, state.correct / Math.max(1, WORD_TARGET - 1));
-    const idx = Math.min(target, Math.round(start + (target - start) * Math.pow(progress, .8)));
-    return LEVELS[idx];
+    // 10語モードも選択した級の語彙だけを使い、級内rankで難度を上げる。
+    return state.difficulty;
   }
 
-  function desiredRankFor(level, round) {
-    if (level === 'oni') return 5;
-    if (state.mode === 'words') return Math.min(5, 1 + Math.floor((round / WORD_TARGET) * 5));
-    return 3;
-  }
-
-  function filterPoolByRank(pool, fallback, level, desiredRank) {
-    if (level === 'oni') {
-      const rank5 = pool.filter(w => w.rank === 5);
-      if (rank5.length >= 3) return rank5;
-      const hard = pool.filter(w => w.rank >= 4);
-      if (hard.length >= 3) return hard;
-      const fallback5 = fallback.filter(w => w.rank === 5);
-      return fallback5.length >= 3 ? fallback5 : fallback;
+  function desiredRanksFor(level, round) {
+    if (state.mode === 'words') {
+      const schedule = WORD_RANK_SCHEDULES[level] || WORD_RANK_SCHEDULES.beginner;
+      return [schedule[Math.min(schedule.length - 1, Math.max(0, round))]];
     }
-    const rankPool = pool.filter(w => Math.abs(w.rank - desiredRank) <= 2);
-    return rankPool.length >= 3 ? rankPool : pool;
+    return TIME_RANK_BANDS[level] || [1,2,3];
+  }
+
+  function filterPoolByRank(pool, fallback, level, round) {
+    const desired = desiredRanksFor(level, round);
+    let ranked = pool.filter(w => desired.includes(w.rank));
+    if (ranked.length >= 3) return ranked;
+    ranked = fallback.filter(w => desired.includes(w.rank));
+    if (ranked.length >= 3) return ranked;
+
+    // データ編集で対象rankが不足しても停止しないよう、最も近いrankから段階的に広げる。
+    const center = desired.reduce((a,b)=>a+b,0) / desired.length;
+    const distances = [...new Set(fallback.map(w => Math.abs(w.rank - center)))].sort((a,b)=>a-b);
+    const allowed = new Set(desired);
+    for (const distance of distances) {
+      fallback.forEach(w => { if (Math.abs(w.rank - center) === distance) allowed.add(w.rank); });
+      ranked = pool.filter(w => allowed.has(w.rank));
+      if (ranked.length >= 3) return ranked;
+      ranked = fallback.filter(w => allowed.has(w.rank));
+      if (ranked.length >= 3) return ranked;
+    }
+    return fallback;
   }
 
   const wordProfileCache = new WeakMap();
@@ -666,17 +684,13 @@
   }
   function seededValue(key) { return mulberry32(hashString(`${state.battle.seed}|${key}`))(); }
   function chooseLevelForRound(round) {
-    if (state.mode === 'time' || state.difficulty === 'oni') return state.difficulty;
-    const target = LEVELS.indexOf(state.difficulty), start = Math.max(0,target-2);
-    const progress = Math.min(1, round / Math.max(1, WORD_TARGET - 1));
-    return LEVELS[Math.min(target,Math.round(start+(target-start)*Math.pow(progress,.8)))];
+    return state.difficulty;
   }
   function getBattleWordSet(round, variant=0) {
     const key = `${round}:${variant}`;
     if (state.battle.cache.has(key)) return state.battle.cache.get(key);
     const level = chooseLevelForRound(round), source = window.KCK_WORDS[level] || [];
-    const desiredRank = desiredRankFor(level, round);
-    let pool = filterPoolByRank(source, source, level, desiredRank);
+    let pool = filterPoolByRank(source, source, level, round);
     const rand = mulberry32(hashString(`${state.battle.seed}|words|${key}|${level}`));
     const out = chooseBalancedWordSet(pool.length >= 3 ? pool : source, rand);
     state.battle.cache.set(key,out); return out;
@@ -1111,6 +1125,6 @@
   function storageSet(key, value) { try { window.localStorage.setItem(key, value); } catch {} }
   function escapeHtml(s) { return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
-  window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores, hashString, mulberry32, wordTypingProfile, wordSetBalanceScore, chooseBalancedWordSet, getState:()=>state });
+  window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores, hashString, mulberry32, wordTypingProfile, wordSetBalanceScore, chooseBalancedWordSet, desiredRanksFor, filterPoolByRank, getState:()=>state });
   init();
 })();
