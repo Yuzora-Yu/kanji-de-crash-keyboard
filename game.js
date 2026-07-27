@@ -18,6 +18,8 @@
   const WORD_TARGET = 10;
   const RECOVERY_SECONDS = 10;
   const SCORE_LIMIT = 5;
+  const VOWELS = new Set(['a','i','u','e','o']);
+  const SHORT_WORD_MAX = 10;
   const CPU_CONFIG = {
     1:{cps:2.6,reaction:[.95,1.55],accuracy:.78,knowledge:.82,difficultyPenalty:.12,rankPenalty:.05,strategy:1},
     2:{cps:3.8,reaction:[.70,1.20],accuracy:.86,knowledge:.89,difficultyPenalty:.09,rankPenalty:.04,strategy:2},
@@ -409,18 +411,17 @@
       state.words = getBattleWordSet(state.correct, variant);
     } else {
       const source = window.KCK_WORDS[level] || [];
-      const desiredRank = state.mode === 'words' ? Math.min(5, 1 + Math.floor((state.correct / WORD_TARGET) * 5)) : 3;
+      const desiredRank = desiredRankFor(level, state.correct);
       let pool = source.filter(w => !state.recent.includes(w.word));
-      const rankPool = pool.filter(w => Math.abs(w.rank - desiredRank) <= 2);
-      if (rankPool.length >= 3) pool = rankPool;
-      state.words = sampleUnique(pool.length >= 3 ? pool : source, 3);
+      pool = filterPoolByRank(pool, source, level, desiredRank);
+      state.words = chooseBalancedWordSet(pool.length >= 3 ? pool : source, Math.random);
     }
     els.currentDifficulty.textContent = LEVEL_LABELS[level];
     renderWords(); updateWaitingNotice();
   }
 
   function chooseActualLevel() {
-    if (state.mode === 'time') return state.difficulty;
+    if (state.mode === 'time' || state.difficulty === 'oni') return state.difficulty;
     const target = LEVELS.indexOf(state.difficulty);
     const start = Math.max(0, target - 2);
     const progress = Math.min(1, state.correct / Math.max(1, WORD_TARGET - 1));
@@ -428,12 +429,98 @@
     return LEVELS[idx];
   }
 
-  function sampleUnique(arr, count) {
-    const copy = arr.slice();
-    for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [copy[i],copy[j]]=[copy[j],copy[i]]; }
-    const out=[]; const seen=new Set();
-    for (const item of copy) { if (!seen.has(item.word)) { seen.add(item.word); out.push(item); if (out.length===count) break; } }
+  function desiredRankFor(level, round) {
+    if (level === 'oni') return 5;
+    if (state.mode === 'words') return Math.min(5, 1 + Math.floor((round / WORD_TARGET) * 5));
+    return 3;
+  }
+
+  function filterPoolByRank(pool, fallback, level, desiredRank) {
+    if (level === 'oni') {
+      const rank5 = pool.filter(w => w.rank === 5);
+      if (rank5.length >= 3) return rank5;
+      const hard = pool.filter(w => w.rank >= 4);
+      if (hard.length >= 3) return hard;
+      const fallback5 = fallback.filter(w => w.rank === 5);
+      return fallback5.length >= 3 ? fallback5 : fallback;
+    }
+    const rankPool = pool.filter(w => Math.abs(w.rank - desiredRank) <= 2);
+    return rankPool.length >= 3 ? rankPool : pool;
+  }
+
+  const wordProfileCache = new WeakMap();
+  function wordTypingProfile(word) {
+    if (wordProfileCache.has(word)) return wordProfileCache.get(word);
+    const variants = word.readings.flatMap(readingToRomajiVariants).filter(Boolean);
+    variants.sort((a,b) => a.length - b.length || new Set(a).size - new Set(b).size || a.localeCompare(b));
+    const romaji = variants[0] || '';
+    const keys = new Set([...romaji].filter(c => LETTERS.includes(c)));
+    const vowels = new Set([...keys].filter(c => VOWELS.has(c)));
+    const profile = {romaji, length:romaji.length, keys, vowels};
+    wordProfileCache.set(word, profile);
+    return profile;
+  }
+
+  function setIntersection(sets) {
+    if (!sets.length) return new Set();
+    const out = new Set(sets[0]);
+    for (const set of sets.slice(1)) for (const value of [...out]) if (!set.has(value)) out.delete(value);
     return out;
+  }
+
+  function setUnion(sets) {
+    const out = new Set();
+    sets.forEach(set => set.forEach(value => out.add(value)));
+    return out;
+  }
+
+  function jaccard(a,b) {
+    const union = new Set([...a,...b]);
+    if (!union.size) return 0;
+    let common=0; a.forEach(value => { if (b.has(value)) common++; });
+    return common / union.size;
+  }
+
+  function wordSetBalanceScore(words) {
+    const p = words.map(wordTypingProfile);
+    const allShort = p.every(x => x.length <= SHORT_WORD_MAX);
+    const keyUnion = setUnion(p.map(x => x.keys));
+    const vowelUnion = setUnion(p.map(x => x.vowels));
+    const commonKeys = setIntersection(p.map(x => x.keys));
+    const commonVowels = setIntersection(p.map(x => x.vowels));
+    const overlaps = [jaccard(p[0].keys,p[1].keys),jaccard(p[0].keys,p[2].keys),jaccard(p[1].keys,p[2].keys)];
+    const avgOverlap = overlaps.reduce((a,b)=>a+b,0)/overlaps.length;
+    const lengthSpread = Math.max(...p.map(x=>x.length)) - Math.min(...p.map(x=>x.length));
+    let score = keyUnion.size * 7 + vowelUnion.size * 15 + lengthSpread * 1 - avgOverlap * 100 - commonKeys.size * 18;
+    if (allShort) {
+      score -= commonVowels.size * 120;
+      if (vowelUnion.size <= 2) score -= 100;
+      if (avgOverlap >= .55) score -= 90;
+      if (commonKeys.size >= 3) score -= 90;
+    } else {
+      score += p.reduce((sum,x)=>sum+Math.max(0,x.length-SHORT_WORD_MAX)*3,0);
+      score -= commonVowels.size * 28;
+    }
+    return score;
+  }
+
+  function chooseBalancedWordSet(pool, randomFn=Math.random) {
+    const unique=[]; const seen=new Set();
+    for (const item of pool) if (!seen.has(item.word)) { seen.add(item.word); unique.push(item); }
+    if (unique.length <= 3) return unique.slice(0,3);
+    const copy=unique.slice();
+    for(let i=copy.length-1;i>0;i--){const j=Math.floor(randomFn()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]];}
+    const candidates=copy.slice(0,Math.min(72,copy.length));
+    const trials=Math.min(360,Math.max(90,candidates.length*5));
+    let best=null, bestScore=-Infinity;
+    for(let t=0;t<trials;t++){
+      const indices=new Set();
+      while(indices.size<3) indices.add(Math.floor(randomFn()*candidates.length));
+      const trio=[...indices].map(i=>candidates[i]);
+      const score=wordSetBalanceScore(trio)+randomFn()*9;
+      if(score>bestScore){bestScore=score;best=trio;}
+    }
+    return best || copy.slice(0,3);
   }
 
   function renderWords() {
@@ -579,7 +666,7 @@
   }
   function seededValue(key) { return mulberry32(hashString(`${state.battle.seed}|${key}`))(); }
   function chooseLevelForRound(round) {
-    if (state.mode === 'time') return state.difficulty;
+    if (state.mode === 'time' || state.difficulty === 'oni') return state.difficulty;
     const target = LEVELS.indexOf(state.difficulty), start = Math.max(0,target-2);
     const progress = Math.min(1, round / Math.max(1, WORD_TARGET - 1));
     return LEVELS[Math.min(target,Math.round(start+(target-start)*Math.pow(progress,.8)))];
@@ -588,13 +675,10 @@
     const key = `${round}:${variant}`;
     if (state.battle.cache.has(key)) return state.battle.cache.get(key);
     const level = chooseLevelForRound(round), source = window.KCK_WORDS[level] || [];
-    const desiredRank = state.mode === 'words' ? Math.min(5,1+Math.floor((round/WORD_TARGET)*5)) : 3;
-    let pool = source.filter(w => Math.abs(w.rank-desiredRank)<=2); if (pool.length<3) pool=source;
+    const desiredRank = desiredRankFor(level, round);
+    let pool = filterPoolByRank(source, source, level, desiredRank);
     const rand = mulberry32(hashString(`${state.battle.seed}|words|${key}|${level}`));
-    const copy=pool.slice();
-    for(let i=copy.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]];}
-    const out=[],seen=new Set();
-    for(const item of copy){if(!seen.has(item.word)){seen.add(item.word);out.push(item);if(out.length===3)break;}}
+    const out = chooseBalancedWordSet(pool.length >= 3 ? pool : source, rand);
     state.battle.cache.set(key,out); return out;
   }
 
@@ -1027,6 +1111,6 @@
   function storageSet(key, value) { try { window.localStorage.setItem(key, value); } catch {} }
   function escapeHtml(s) { return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
-  window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores, hashString, mulberry32, getState:()=>state });
+  window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores, hashString, mulberry32, wordTypingProfile, wordSetBalanceScore, chooseBalancedWordSet, getState:()=>state });
   init();
 })();
