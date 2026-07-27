@@ -49,6 +49,7 @@
             </div>
           </fieldset>
           <button id="startButton" class="primary-button" type="button">ゲーム開始 <span>Enter</span></button>
+          <button id="battleButton" class="battle-button setup-secondary" type="button">対戦</button>
           <button id="highscoreButton" class="secondary-button setup-secondary" type="button">ハイスコアを見る</button>
           <button id="tutorialButton" class="text-button" type="button">最初に遊び方を見る</button>
         </div>
@@ -59,6 +60,64 @@
         </div>
       </section>
 
+
+      <section id="battleScreen" class="screen" aria-labelledby="battleTitle">
+        <div class="menu-card panel">
+          <p class="eyebrow">VERSUS</p>
+          <h2 id="battleTitle">対戦</h2>
+          <p class="menu-lead">同じ3語から、読みとキーボード管理の腕を競います。</p>
+          <div class="versus-menu-grid">
+            <button id="cpuBattleButton" class="menu-tile" type="button">
+              <strong>CPU戦</strong>
+              <span>Lv1〜5のCPUと1 VS 1</span>
+            </button>
+            <button class="menu-tile coming-soon" type="button" disabled>
+              <strong>フレンド対戦</strong>
+              <span>2〜8人・ルームコード対応予定</span>
+              <em>COMING SOON</em>
+            </button>
+          </div>
+          <button id="battleBackButton" class="text-button menu-back" type="button">タイトルへ戻る</button>
+        </div>
+      </section>
+
+      <section id="cpuSetupScreen" class="screen" aria-labelledby="cpuSetupTitle">
+        <div class="cpu-setup-card panel">
+          <p class="eyebrow">CPU BATTLE</p>
+          <h2 id="cpuSetupTitle">CPU戦</h2>
+          <p class="menu-lead">全く同じ問題列で勝負。相手への攻撃はありません。</p>
+          <fieldset>
+            <legend>モード</legend>
+            <div class="segmented">
+              <label><input type="radio" name="cpuMode" value="time" checked><span><b>30秒</b><small>最終スコア勝負</small></span></label>
+              <label><input type="radio" name="cpuMode" value="words"><span><b>20語</b><small>スコア＋完走タイム</small></span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>難易度</legend>
+            <div class="difficulty-grid">
+              <label><input type="radio" name="cpuDifficulty" value="beginner" checked><span>初級<small>小学生程度</small></span></label>
+              <label><input type="radio" name="cpuDifficulty" value="intermediate"><span>中級<small>中学生程度</small></span></label>
+              <label><input type="radio" name="cpuDifficulty" value="advanced"><span>上級<small>高校生程度</small></span></label>
+              <label><input type="radio" name="cpuDifficulty" value="expert"><span>超級<small>準2級〜2級目安</small></span></label>
+              <label><input type="radio" name="cpuDifficulty" value="oni"><span>鬼<small>2級〜1級目安</small></span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>CPUの強さ</legend>
+            <div class="cpu-level-grid">
+              <label><input type="radio" name="cpuLevel" value="1"><span><b>Lv1</b><small>ゆっくり</small></span></label>
+              <label><input type="radio" name="cpuLevel" value="2"><span><b>Lv2</b><small>初級者</small></span></label>
+              <label><input type="radio" name="cpuLevel" value="3" checked><span><b>Lv3</b><small>標準</small></span></label>
+              <label><input type="radio" name="cpuLevel" value="4"><span><b>Lv4</b><small>上級者</small></span></label>
+              <label><input type="radio" name="cpuLevel" value="5"><span><b>Lv5</b><small>達人</small></span></label>
+            </div>
+          </fieldset>
+          <button id="startCpuButton" class="primary-button" type="button">CPU戦開始 <span>Enter</span></button>
+          <button id="cpuSetupBackButton" class="text-button menu-back" type="button">対戦メニューへ戻る</button>
+        </div>
+      </section>
+
       <section id="gameScreen" class="screen" aria-label="ゲーム画面">
         <div class="hud panel">
           <div class="hud-item"><span>MODE</span><strong id="hudMode">30秒</strong></div>
@@ -66,8 +125,23 @@
           <div class="hud-item"><span>SCORE</span><strong id="hudScore">0</strong></div>
           <div class="hud-item"><span>CRASH</span><strong id="hudCrashes">0</strong></div>
           <div id="hudLivesItem" class="hud-item hud-lives" hidden><span>HP</span><strong id="hudLives" aria-label="残りHP">♥♥♥♥♥</strong></div>
-          <div class="hud-item"><span>BEST</span><strong id="hudBest">-</strong></div>
+          <div class="hud-item"><span id="hudBestLabel">BEST</span><strong id="hudBest">-</strong></div>
         </div>
+
+        <section id="duelPanel" class="duel-panel panel" hidden aria-label="CPU対戦状況">
+          <div class="duel-side player-side">
+            <span class="duel-name">YOU</span>
+            <strong id="duelPlayerScore">0</strong>
+            <small id="duelPlayerStatus">READY</small>
+          </div>
+          <div class="duel-vs">VS</div>
+          <div class="duel-side cpu-side">
+            <div class="duel-cpu-head"><span id="duelCpuName" class="duel-name">CPU Lv3</span><small id="duelCpuStatus">READY</small></div>
+            <strong id="duelCpuScore">0</strong>
+            <div class="duel-cpu-meta"><span id="duelCpuProgress">0語</span><span id="duelCpuLives">♥♥♥♥♥</span><span id="duelCpuCrashes">破損 0</span></div>
+            <div id="cpuMiniKeyboard" class="mini-keyboard" aria-label="CPUのキーボード状態"></div>
+          </div>
+        </section>
 
         <section class="word-zone" aria-label="問題">
           <div class="difficulty-badge" id="currentDifficulty">初級</div>
@@ -110,6 +184,11 @@
             <div><span>終了時健全率</span><strong id="resultIntegrity">100%</strong></div>
           </div>
           <p id="resultComment" class="result-comment"></p>
+          <section id="battleResult" class="battle-result" hidden>
+            <h3 id="battleResultHeading">対戦結果</h3>
+            <div class="battle-result-row player"><span>YOU</span><strong id="battlePlayerScore">0</strong><small id="battlePlayerDetail"></small></div>
+            <div class="battle-result-row cpu"><span id="battleCpuLabel">CPU Lv3</span><strong id="battleCpuScore">0</strong><small id="battleCpuDetail"></small></div>
+          </section>
           <section id="resultAnswers" class="result-answers" hidden>
             <h3>終了時に表示されていた3語</h3>
             <p>ひらがな読みと、入力できるローマ字表記の一例です。</p>

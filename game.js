@@ -17,6 +17,13 @@
   const MAX_LIVES = 5;
   const RECOVERY_SECONDS = 10;
   const SCORE_LIMIT = 5;
+  const CPU_CONFIG = {
+    1:{cps:2.6,reaction:[.95,1.55],accuracy:.78,knowledge:.82,difficultyPenalty:.12,rankPenalty:.05,strategy:1},
+    2:{cps:3.8,reaction:[.70,1.20],accuracy:.86,knowledge:.89,difficultyPenalty:.09,rankPenalty:.04,strategy:2},
+    3:{cps:5.2,reaction:[.50,.90],accuracy:.93,knowledge:.95,difficultyPenalty:.06,rankPenalty:.03,strategy:3},
+    4:{cps:6.8,reaction:[.34,.65],accuracy:.975,knowledge:.985,difficultyPenalty:.032,rankPenalty:.016,strategy:4},
+    5:{cps:8.6,reaction:[.20,.45],accuracy:.995,knowledge:.998,difficultyPenalty:.012,rankPenalty:.006,strategy:5}
+  };
 
   const ROMAJI = {
     kya:'きゃ',kyu:'きゅ',kyo:'きょ',gya:'ぎゃ',gyu:'ぎゅ',gyo:'ぎょ',
@@ -61,19 +68,23 @@
 
   const $ = id => document.getElementById(id);
   const els = {
-    titleScreen:$('titleScreen'), gameScreen:$('gameScreen'), resultScreen:$('resultScreen'), highscoreScreen:$('highscoreScreen'),
-    startButton:$('startButton'), tutorialButton:$('tutorialButton'), modalStartButton:$('modalStartButton'),
+    titleScreen:$('titleScreen'), battleScreen:$('battleScreen'), cpuSetupScreen:$('cpuSetupScreen'), gameScreen:$('gameScreen'), resultScreen:$('resultScreen'), highscoreScreen:$('highscoreScreen'),
+    startButton:$('startButton'), battleButton:$('battleButton'), cpuBattleButton:$('cpuBattleButton'), battleBackButton:$('battleBackButton'),
+    startCpuButton:$('startCpuButton'), cpuSetupBackButton:$('cpuSetupBackButton'), tutorialButton:$('tutorialButton'), modalStartButton:$('modalStartButton'),
     helpButton:$('helpButton'), homeButton:$('homeButton'), soundButton:$('soundButton'), aboutButton:$('aboutButton'),
     highscoreButton:$('highscoreButton'), resultHighscoreButton:$('resultHighscoreButton'), highscoreBackButton:$('highscoreBackButton'),
     shareHighscoresButton:$('shareHighscoresButton'),
     wordCount:$('wordCount'), wordCards:$('wordCards'), inputDisplay:$('inputDisplay'), feedback:$('feedback'),
     keyboard:$('keyboard'), rerollButton:$('rerollButton'),
-    hudMode:$('hudMode'), hudLabel:$('hudLabel'), hudValue:$('hudValue'), hudScore:$('hudScore'), hudCrashes:$('hudCrashes'), hudBest:$('hudBest'), hudLives:$('hudLives'), hudLivesItem:$('hudLivesItem'),
+    hudMode:$('hudMode'), hudLabel:$('hudLabel'), hudValue:$('hudValue'), hudScore:$('hudScore'), hudCrashes:$('hudCrashes'), hudBest:$('hudBest'), hudBestLabel:$('hudBestLabel'), hudLives:$('hudLives'), hudLivesItem:$('hudLivesItem'),
+    duelPanel:$('duelPanel'), duelPlayerScore:$('duelPlayerScore'), duelPlayerStatus:$('duelPlayerStatus'), duelCpuName:$('duelCpuName'),
+    duelCpuScore:$('duelCpuScore'), duelCpuStatus:$('duelCpuStatus'), duelCpuProgress:$('duelCpuProgress'), duelCpuLives:$('duelCpuLives'), duelCpuCrashes:$('duelCpuCrashes'), cpuMiniKeyboard:$('cpuMiniKeyboard'),
     currentDifficulty:$('currentDifficulty'),
     modalBackdrop:$('modalBackdrop'), helpModal:$('helpModal'),
     resultTitle:$('resultTitle'), resultRank:$('resultRank'), resultMainLabel:$('resultMainLabel'), resultMainValue:$('resultMainValue'),
     resultCorrect:$('resultCorrect'), resultMistakes:$('resultMistakes'), resultCrashes:$('resultCrashes'), resultIntegrity:$('resultIntegrity'), resultComment:$('resultComment'),
-    resultAnswers:$('resultAnswers'), resultAnswerList:$('resultAnswerList'),
+    resultAnswers:$('resultAnswers'), resultAnswerList:$('resultAnswerList'), battleResult:$('battleResult'), battleResultHeading:$('battleResultHeading'),
+    battlePlayerScore:$('battlePlayerScore'), battlePlayerDetail:$('battlePlayerDetail'), battleCpuLabel:$('battleCpuLabel'), battleCpuScore:$('battleCpuScore'), battleCpuDetail:$('battleCpuDetail'),
     retryButton:$('retryButton'), shareButton:$('shareButton'), backButton:$('backButton'),
     highscoreModeLabel:$('highscoreModeLabel'), highscoreDifficultyLabel:$('highscoreDifficultyLabel'), highscoreCount:$('highscoreCount'),
     highscoreList:$('highscoreList'), highscoreEmpty:$('highscoreEmpty')
@@ -86,20 +97,23 @@
   let audioContext = null;
   let soundOn = storageGet('kck-sound') !== 'off';
   let highscoreReturnScreen = 'title';
+  let lastPlayKind = 'solo';
 
   function freshState() {
     const health = {};
     WEAR_KEYS.forEach(k => health[k] = { stage:0, brokenRemaining:0 });
     return {
-      active:false, paused:false, mode:'time', difficulty:'beginner', health,
+      active:false, paused:false, mode:'time', difficulty:'beginner', playKind:'solo', cpuLevel:3, health,
       input:'', pendingUsed:new Set(), wordUsed:new Set(), words:[], recent:[],
       score:0, correct:0, mistakes:0, crashes:0, rerolls:1, lives:MAX_LIVES,
-      elapsed:0, remaining:30, finalIntegrity:100, resultReason:'', lastActualLevel:'beginner'
+      elapsed:0, remaining:30, finalIntegrity:100, resultReason:'', lastActualLevel:'beginner',
+      playerFinished:false, playerFinishTime:0, playerResultReason:'', battle:null
     };
   }
 
   function init() {
     renderKeyboard();
+    renderCpuMiniKeyboard();
     const total = Object.values(window.KCK_WORDS || {}).reduce((n,a) => n + a.length, 0);
     els.wordCount.textContent = total.toLocaleString('ja-JP');
     els.soundButton.textContent = soundOn ? '🔊' : '🔇';
@@ -110,8 +124,13 @@
 
   function bindEvents() {
     els.startButton.addEventListener('click', startGame);
-    els.retryButton.addEventListener('click', startGame);
-    els.backButton.addEventListener('click', () => showScreen('title'));
+    els.battleButton.addEventListener('click', () => showScreen('battle'));
+    els.cpuBattleButton.addEventListener('click', openCpuSetup);
+    els.battleBackButton.addEventListener('click', () => showScreen('title'));
+    els.startCpuButton.addEventListener('click', startCpuBattle);
+    els.cpuSetupBackButton.addEventListener('click', () => showScreen('battle'));
+    els.retryButton.addEventListener('click', retryGame);
+    els.backButton.addEventListener('click', () => showScreen(state.playKind === 'cpu' ? 'cpu' : 'title'));
     els.highscoreButton.addEventListener('click', () => openHighscores('title'));
     els.resultHighscoreButton.addEventListener('click', () => openHighscores('result'));
     els.highscoreBackButton.addEventListener('click', () => showScreen(highscoreReturnScreen));
@@ -134,6 +153,14 @@
     });
     els.aboutButton.addEventListener('click', () => window.open('about.html', '_blank', 'noopener'));
     window.addEventListener('keydown', handleKeyDown, { passive:false });
+  }
+
+  function renderCpuMiniKeyboard() {
+    els.cpuMiniKeyboard.innerHTML = '';
+    LETTERS.forEach(key => {
+      const el = document.createElement('i'); el.className = 'mini-key'; el.dataset.cpuKey = key;
+      els.cpuMiniKeyboard.appendChild(el);
+    });
   }
 
   function renderKeyboard() {
@@ -161,10 +188,13 @@
     closeModals();
     stopGameLoop();
     state = freshState();
+    state.playKind = 'solo';
     state.mode = selected('mode');
     state.difficulty = selected('difficulty');
     state.remaining = 30;
     state.active = true;
+    lastPlayKind = 'solo';
+    document.body.classList.remove('player-finished');
     showScreen('game');
     drawWords();
     updateAll();
@@ -173,17 +203,59 @@
     beep('start');
   }
 
+  function openCpuSetup() {
+    const mode = selected('mode');
+    const difficulty = selected('difficulty');
+    const modeInput = document.querySelector(`input[name="cpuMode"][value="${mode}"]`);
+    const difficultyInput = document.querySelector(`input[name="cpuDifficulty"][value="${difficulty}"]`);
+    if (modeInput) modeInput.checked = true;
+    if (difficultyInput) difficultyInput.checked = true;
+    showScreen('cpu');
+  }
+
+  function startCpuBattle() {
+    closeModals();
+    stopGameLoop();
+    state = freshState();
+    state.playKind = 'cpu';
+    state.mode = selected('cpuMode');
+    state.difficulty = selected('cpuDifficulty');
+    state.cpuLevel = Number(selected('cpuLevel'));
+    state.remaining = 30;
+    state.active = true;
+    state.battle = {
+      seed:`${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      cpu:freshCpuState(state.cpuLevel), cache:new Map(), playerRerollRound:-1
+    };
+    lastPlayKind = 'cpu';
+    document.body.classList.remove('player-finished');
+    showScreen('game');
+    drawWords();
+    cpuDrawWords();
+    updateAll();
+    lastFrame = performance.now();
+    rafId = requestAnimationFrame(gameLoop);
+    beep('start');
+  }
+
+  function retryGame() { if (lastPlayKind === 'cpu') startCpuBattle(); else startGame(); }
+
   function gameLoop(now) {
     if (!state.active) return;
     const dt = Math.min(.1, (now - lastFrame) / 1000 || 0); lastFrame = now;
     if (!state.paused) {
       state.elapsed += dt;
       recoverTimedKeys(dt);
+      if (state.playKind === 'cpu') updateCpu(dt);
+      if (!state.active) return;
       if (state.mode === 'time') {
         state.remaining = Math.max(0, state.remaining - dt);
-        if (state.remaining <= 0) { endGame('TIME UP'); return; }
+        if (state.remaining <= 0) {
+          if (state.playKind === 'cpu') endTimedBattle(); else endGame('TIME UP');
+          return;
+        }
       }
-      updateHud(); updateKeyboardRecoveryLabels(); updateWaitingNotice();
+      updateHud(); updateKeyboardRecoveryLabels(); updateWaitingNotice(); updateDuelPanel();
     }
     rafId = requestAnimationFrame(gameLoop);
   }
@@ -207,10 +279,11 @@
     if (!state.active) {
       if (e.key === 'Enter' && !els.helpModal.hidden) { closeModals(); return; }
       if (e.key === 'Enter' && els.titleScreen.classList.contains('active')) startGame();
-      else if (e.key === 'Enter' && els.resultScreen.classList.contains('active')) startGame();
+      else if (e.key === 'Enter' && els.cpuSetupScreen.classList.contains('active')) startCpuBattle();
+      else if (e.key === 'Enter' && els.resultScreen.classList.contains('active')) retryGame();
       return;
     }
-    if (state.paused) return;
+    if (state.paused || state.playerFinished) return;
 
     if (/^Key[A-Z]$/.test(e.code)) {
       e.preventDefault();
@@ -271,7 +344,10 @@
     els.feedback.className = 'feedback ok';
     els.feedback.textContent = `正解：${word.word}（${matchedReading}） +${gain}｜入力${romanLen}字`;
     flashInput('success'); beep('correct');
-    if (state.mode === 'words' && state.correct >= 20) { endGame('20語クリア'); return; }
+    if (state.mode === 'words' && state.correct >= 20) {
+      if (state.playKind === 'cpu') finishPlayerBattle('20語クリア'); else endGame('20語クリア');
+      return;
+    }
     drawWords(); updateAll();
   }
 
@@ -286,7 +362,9 @@
       ? `読みが違います（残りHP ${state.lives}）`
       : `読みが違います（入力：${state.input}）`;
     flashInput('error'); beep('error'); updateAll();
-    if (state.mode === 'words' && state.lives <= 0) endGame('GAME OVER');
+    if (state.mode === 'words' && state.lives <= 0) {
+      if (state.playKind === 'cpu') finishPlayerBattle('GAME OVER'); else endGame('GAME OVER');
+    }
   }
 
   function applyWear(keys) {
@@ -325,12 +403,17 @@
   function drawWords() {
     state.input = ''; state.pendingUsed.clear(); state.wordUsed.clear(); renderInput();
     const level = chooseActualLevel(); state.lastActualLevel = level;
-    const source = window.KCK_WORDS[level] || [];
-    const desiredRank = state.mode === 'words' ? Math.min(5, 1 + Math.floor((state.correct / 20) * 5)) : 3;
-    let pool = source.filter(w => !state.recent.includes(w.word));
-    const rankPool = pool.filter(w => Math.abs(w.rank - desiredRank) <= 2);
-    if (rankPool.length >= 3) pool = rankPool;
-    state.words = sampleUnique(pool.length >= 3 ? pool : source, 3);
+    if (state.playKind === 'cpu') {
+      const variant = state.battle.playerRerollRound === state.correct ? 1 : 0;
+      state.words = getBattleWordSet(state.correct, variant);
+    } else {
+      const source = window.KCK_WORDS[level] || [];
+      const desiredRank = state.mode === 'words' ? Math.min(5, 1 + Math.floor((state.correct / 20) * 5)) : 3;
+      let pool = source.filter(w => !state.recent.includes(w.word));
+      const rankPool = pool.filter(w => Math.abs(w.rank - desiredRank) <= 2);
+      if (rankPool.length >= 3) pool = rankPool;
+      state.words = sampleUnique(pool.length >= 3 ? pool : source, 3);
+    }
     els.currentDifficulty.textContent = LEVEL_LABELS[level];
     renderWords(); updateWaitingNotice();
   }
@@ -364,6 +447,7 @@
   function useReroll() {
     if (!state.active || state.rerolls <= 0) return;
     state.rerolls--;
+    if (state.playKind === 'cpu') state.battle.playerRerollRound = state.correct;
     drawWords(); updateAll(); beep('reroll');
   }
 
@@ -386,7 +470,7 @@
   }
 
   function updateWaitingNotice() {
-    if (!state.active || !state.words.length) return;
+    if (!state.active || state.playerFinished || !state.words.length) return;
     if (state.words.some(isWordTypeable)) {
       if (els.feedback.dataset.waiting === '1') {
         els.feedback.textContent = ''; els.feedback.className = 'feedback'; delete els.feedback.dataset.waiting;
@@ -405,7 +489,7 @@
     return Math.round(values.reduce((a,b)=>a+b,0) / values.length * 100);
   }
 
-  function updateAll() { updateHud(); updateKeyboard(); renderInput(); updateReroll(); updateWaitingNotice(); }
+  function updateAll() { updateHud(); updateKeyboard(); renderInput(); updateReroll(); updateWaitingNotice(); updateDuelPanel(); }
   function updateHud() {
     if (state.mode === 'time') {
       els.hudMode.textContent = '30秒'; els.hudLabel.textContent = '残り時間'; els.hudValue.textContent = state.remaining.toFixed(1);
@@ -416,7 +500,12 @@
     }
     els.hudScore.textContent = state.score.toLocaleString('ja-JP');
     els.hudCrashes.textContent = state.crashes;
-    const best = loadScores(state.mode, state.difficulty)[0]; els.hudBest.textContent = best ? best.score.toLocaleString('ja-JP') : '-';
+    if (state.playKind === 'cpu') {
+      els.hudBestLabel.textContent = 'CPU LV'; els.hudBest.textContent = state.cpuLevel;
+    } else {
+      els.hudBestLabel.textContent = 'BEST';
+      const best = loadScores(state.mode, state.difficulty)[0]; els.hudBest.textContent = best ? best.score.toLocaleString('ja-JP') : '-';
+    }
   }
 
   function renderHearts(lives) {
@@ -467,6 +556,178 @@
     setTimeout(()=>el.classList.remove('just-hit'),160);
   }
 
+  function makeHealth() {
+    const health = {}; WEAR_KEYS.forEach(k => health[k] = {stage:0, brokenRemaining:0}); return health;
+  }
+
+  function freshCpuState(level) {
+    return {
+      level, health:makeHealth(), score:0, correct:0, mistakes:0, crashes:0, lives:MAX_LIVES,
+      elapsed:0, finished:false, finishTime:0, resultReason:'', finalIntegrity:100,
+      words:[], rerolls:1, rerollRound:-1, plan:null, decisionDelay:.45, status:'考え中'
+    };
+  }
+
+  function hashString(value) {
+    let h = 2166136261;
+    for (let i=0;i<value.length;i++) { h ^= value.charCodeAt(i); h = Math.imul(h,16777619); }
+    return h >>> 0;
+  }
+  function mulberry32(seed) {
+    return function() { let t = seed += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  }
+  function seededValue(key) { return mulberry32(hashString(`${state.battle.seed}|${key}`))(); }
+  function chooseLevelForRound(round) {
+    if (state.mode === 'time') return state.difficulty;
+    const target = LEVELS.indexOf(state.difficulty), start = Math.max(0,target-2);
+    const progress = Math.min(1, round / 19);
+    return LEVELS[Math.min(target,Math.round(start+(target-start)*Math.pow(progress,.8)))];
+  }
+  function getBattleWordSet(round, variant=0) {
+    const key = `${round}:${variant}`;
+    if (state.battle.cache.has(key)) return state.battle.cache.get(key);
+    const level = chooseLevelForRound(round), source = window.KCK_WORDS[level] || [];
+    const desiredRank = state.mode === 'words' ? Math.min(5,1+Math.floor((round/20)*5)) : 3;
+    let pool = source.filter(w => Math.abs(w.rank-desiredRank)<=2); if (pool.length<3) pool=source;
+    const rand = mulberry32(hashString(`${state.battle.seed}|words|${key}|${level}`));
+    const copy=pool.slice();
+    for(let i=copy.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]];}
+    const out=[],seen=new Set();
+    for(const item of copy){if(!seen.has(item.word)){seen.add(item.word);out.push(item);if(out.length===3)break;}}
+    state.battle.cache.set(key,out); return out;
+  }
+
+  function cpuDrawWords() {
+    const cpu=state.battle.cpu; if(cpu.finished)return;
+    const variant=cpu.rerollRound===cpu.correct?1:0;
+    cpu.words=getBattleWordSet(cpu.correct,variant); cpu.plan=null; cpu.decisionDelay=.18+seededValue(`decision-${cpu.correct}-${cpu.mistakes}`)*.35; cpu.status='考え中';
+  }
+  function cpuIsBroken(cpu,key){return cpu.health[key]?.stage===3;}
+  function cpuIntegrity(cpu){const vals=WEAR_KEYS.map(k=>[1,.72,.38,0][cpu.health[k].stage]);return Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*100);}
+  function cpuBrokenCount(cpu){return WEAR_KEYS.filter(k=>cpuIsBroken(cpu,k)).length;}
+  function cpuRecover(dt){
+    const cpu=state.battle.cpu;
+    WEAR_KEYS.forEach(k=>{const h=cpu.health[k];if(h.stage===3){h.brokenRemaining=Math.max(0,h.brokenRemaining-dt);if(h.brokenRemaining<=0)Object.assign(h,{stage:0,brokenRemaining:0});}});
+  }
+  function cpuApplyWear(cpu,keys){
+    keys.forEach(k=>{const h=cpu.health[k];if(!h||h.stage===3)return;h.stage++;if(h.stage>=3){h.stage=3;h.brokenRemaining=RECOVERY_SECONDS;cpu.crashes++;}});
+  }
+  function cpuRecoverUnused(cpu,used){WEAR_KEYS.forEach(k=>{const h=cpu.health[k];if(h.stage>0&&h.stage<3&&!used.has(k))h.stage--;});}
+  function cpuKnows(word,reading,index){
+    const cpu=state.battle.cpu,cfg=CPU_CONFIG[cpu.level],actual=LEVELS.indexOf(chooseLevelForRound(cpu.correct));
+    const chance=Math.max(.05,Math.min(.999,cfg.knowledge-actual*cfg.difficultyPenalty-(Math.max(1,word.rank)-1)*cfg.rankPenalty));
+    return seededValue(`know-${cpu.correct}-${index}-${reading}`)<chance;
+  }
+  function cpuCandidateScore(cpu,variant){
+    const used=new Set([...variant].filter(c=>LETTERS.includes(c)));let risk=0,breaks=0;
+    used.forEach(k=>{const stage=cpu.health[k].stage;risk+=stage*1.5+1;if(stage===2)breaks++;});
+    const integrity=cpuIntegrity(cpu),mult=LEVEL_MULTIPLIERS[chooseLevelForRound(cpu.correct)];
+    const gain=Math.round((100+variant.length*12+integrity*1.2+(cpuBrokenCount(cpu)===0?80:0))*mult);
+    return {used,risk,breaks,gain};
+  }
+  function chooseCpuPlan(){
+    const cpu=state.battle.cpu,cfg=CPU_CONFIG[cpu.level],candidates=[];
+    cpu.words.forEach((word,wi)=>word.readings.forEach(reading=>{
+      if(!cpuKnows(word,reading,wi))return;
+      readingToRomajiVariants(reading).forEach(variant=>{
+        if([...variant].some(c=>LETTERS.includes(c)&&cpuIsBroken(cpu,c)))return;
+        const calc=cpuCandidateScore(cpu,variant);candidates.push({word,reading,variant,...calc});
+      });
+    }));
+    if(!candidates.length){
+      const waits=cpu.words.flatMap(w=>w.readings.flatMap(r=>readingToRomajiVariants(r).map(v=>Math.max(0,...[...v].map(c=>cpuIsBroken(cpu,c)?cpu.health[c].brokenRemaining:0)))));
+      const wait=Math.min(...waits.filter(Number.isFinite),RECOVERY_SECONDS);
+      if(cpu.rerolls>0&&wait>(6-cpu.level)) {cpu.rerolls--;cpu.rerollRound=cpu.correct;cpuDrawWords();cpu.status='再抽選';return;}
+      if(seededValue(`guess-${cpu.correct}-${cpu.mistakes}`)<.55){
+        const letters='aiueokstnmrhg';let fake='';const len=2+Math.floor(seededValue(`guesslen-${cpu.correct}-${cpu.mistakes}`)*5);
+        for(let i=0;i<len;i++)fake+=letters[Math.floor(seededValue(`guesschar-${cpu.correct}-${cpu.mistakes}-${i}`)*letters.length)];
+        const usable=[...fake].filter(c=>!cpuIsBroken(cpu,c));if(usable.length){scheduleCpuPlan({variant:usable.join(''),used:new Set(usable),correct:false});return;}
+      }
+      cpu.status=`復活待ち ${Math.max(1,Math.ceil(wait))}秒`;cpu.decisionDelay=.25;return;
+    }
+    let chosen;
+    if(cfg.strategy===1) chosen=candidates[Math.floor(seededValue(`choose-${cpu.correct}-${cpu.mistakes}`)*candidates.length)];
+    else if(cfg.strategy===2) chosen=candidates.sort((a,b)=>a.breaks-b.breaks||a.variant.length-b.variant.length)[0];
+    else {
+      const riskWeight=cfg.strategy===3?34:cfg.strategy===4?48:60;
+      candidates.forEach(c=>c.utility=c.gain+c.variant.length*(cfg.strategy-2)*6-c.risk*riskWeight-c.breaks*180);
+      candidates.sort((a,b)=>b.utility-a.utility);chosen=candidates[0];
+    }
+    const accurate=seededValue(`accuracy-${cpu.correct}-${cpu.mistakes}`)<cfg.accuracy;
+    scheduleCpuPlan({...chosen,correct:accurate});
+  }
+  function scheduleCpuPlan(plan){
+    const cpu=state.battle.cpu,cfg=CPU_CONFIG[cpu.level];
+    const reaction=cfg.reaction[0]+seededValue(`react-${cpu.correct}-${cpu.mistakes}`)*(cfg.reaction[1]-cfg.reaction[0]);
+    cpu.plan={...plan,remaining:reaction+Math.max(1,plan.variant.length)/cfg.cps};cpu.status=`入力中 ${plan.variant.length}字`;
+  }
+  function completeCpuPlan(){
+    const cpu=state.battle.cpu,plan=cpu.plan;cpu.plan=null;if(!plan)return;
+    cpuApplyWear(cpu,plan.used);
+    if(plan.correct&&plan.word){
+      cpuRecoverUnused(cpu,plan.used);
+      const integrity=cpuIntegrity(cpu),mult=LEVEL_MULTIPLIERS[chooseLevelForRound(cpu.correct)];
+      const gain=Math.round((100+plan.variant.length*12+integrity*1.2+(cpuBrokenCount(cpu)===0?80:0))*mult);
+      cpu.score+=gain;cpu.correct++;cpu.status='正解';
+      if(state.mode==='words'&&cpu.correct>=20){finishCpuBattle('20語クリア');return;}
+      cpuDrawWords();
+    }else{
+      cpu.mistakes++;cpu.score=Math.max(0,cpu.score-35);if(state.mode==='words')cpu.lives=Math.max(0,cpu.lives-1);cpu.status='ミス';
+      if(state.mode==='words'&&cpu.lives<=0){finishCpuBattle('GAME OVER');return;}
+      cpu.decisionDelay=.25+seededValue(`retry-${cpu.correct}-${cpu.mistakes}`)*.45;
+    }
+  }
+  function updateCpu(dt){
+    const cpu=state.battle.cpu;if(!cpu||cpu.finished)return;cpu.elapsed+=dt;cpuRecover(dt);
+    if(cpu.plan){cpu.plan.remaining-=dt;if(cpu.plan.remaining<=0)completeCpuPlan();return;}
+    cpu.decisionDelay-=dt;if(cpu.decisionDelay<=0)chooseCpuPlan();
+  }
+  function applyFinishBonus(participant){
+    if(state.mode==='words'&&participant.correct>=20){const timeBonus=Math.max(0,Math.round(12000-participant.finishTime*120));const noCrash=participant.crashes===0?3500:0;participant.score+=timeBonus+noCrash;}
+  }
+  function finishPlayerBattle(reason){
+    if(state.playerFinished)return;state.playerFinished=true;state.playerFinishTime=state.elapsed;state.playerResultReason=reason;state.resultReason=reason;state.finalIntegrity=getIntegrity();applyFinishBonus({
+      get score(){return state.score},set score(v){state.score=v},correct:state.correct,finishTime:state.playerFinishTime,crashes:state.crashes
+    });
+    document.body.classList.add('player-finished');state.input='';renderInput();els.feedback.className='feedback ok';els.feedback.textContent=reason==='20語クリア'?'完走！ CPUの終了を待っています。':'ゲームオーバー。CPUの終了を待っています。';checkBattleComplete();
+  }
+  function finishCpuBattle(reason){
+    const cpu=state.battle.cpu;if(cpu.finished)return;cpu.finished=true;cpu.finishTime=cpu.elapsed;cpu.resultReason=reason;cpu.finalIntegrity=cpuIntegrity(cpu);applyFinishBonus(cpu);cpu.status=reason;checkBattleComplete();
+  }
+  function endTimedBattle(){
+    if(!state.playerFinished){state.playerFinished=true;state.playerFinishTime=30;state.playerResultReason='TIME UP';state.resultReason='TIME UP';state.finalIntegrity=getIntegrity();}
+    const cpu=state.battle.cpu;if(!cpu.finished){cpu.finished=true;cpu.finishTime=30;cpu.resultReason='TIME UP';cpu.finalIntegrity=cpuIntegrity(cpu);}
+    endBattle();
+  }
+  function checkBattleComplete(){if(state.playerFinished&&state.battle.cpu.finished)endBattle();}
+  function compareBattle(){
+    const cpu=state.battle.cpu;if(state.score!==cpu.score)return state.score>cpu.score?1:-1;if(state.correct!==cpu.correct)return state.correct>cpu.correct?1:-1;if(state.crashes!==cpu.crashes)return state.crashes<cpu.crashes?1:-1;const pt=state.playerFinishTime||state.elapsed,ct=cpu.finishTime||cpu.elapsed;if(pt!==ct)return pt<ct?1:-1;return 0;
+  }
+  function endBattle(){
+    if(!state.active)return;state.active=false;state.paused=false;stopGameLoop();closeModals();state.battle.outcome=compareBattle();
+    state.resultReason=state.battle.outcome>0?'CPU戦 勝利':state.battle.outcome<0?'CPU戦 敗北':'CPU戦 引き分け';renderResult();showScreen('result');beep('finish');
+  }
+  function battleOutcomeLabel(){return state.battle?.outcome>0?'WIN':state.battle?.outcome<0?'LOSE':'DRAW';}
+  function battleRankText(){return state.battle?.outcome>0?'1st':state.battle?.outcome<0?'2nd':'DRAW';}
+  function battleComment(){
+    const out=state.battle?.outcome||0;if(out>0)return`CPU Lv${state.cpuLevel}に勝利。同じ問題でも、入力経路とキー管理で差がつきました。`;if(out<0)return`CPU Lv${state.cpuLevel}の勝利。長い入力の得点と、破損リスクの配分を見直せそうです。`;return'完全な引き分け。同じ条件で、もう一度決着を。';
+  }
+  function renderBattleResult(){
+    const battle=state.playKind==='cpu'&&state.battle;els.battleResult.hidden=!battle;if(!battle)return;const cpu=state.battle.cpu;
+    els.battleResultHeading.textContent=`${battleOutcomeLabel()}｜CPU Lv${state.cpuLevel}`;
+    els.battlePlayerScore.textContent=state.score.toLocaleString('ja-JP');els.battleCpuLabel.textContent=`CPU Lv${state.cpuLevel}`;els.battleCpuScore.textContent=cpu.score.toLocaleString('ja-JP');
+    els.battlePlayerDetail.textContent=battleDetail(state.correct,state.mistakes,state.crashes,state.playerFinishTime,state.playerResultReason);
+    els.battleCpuDetail.textContent=battleDetail(cpu.correct,cpu.mistakes,cpu.crashes,cpu.finishTime,cpu.resultReason);
+  }
+  function battleDetail(correct,mistakes,crashes,time,reason){const t=state.mode==='words'?`・${Number(time||0).toFixed(2)}秒`:'';return`${correct}語・ミス${mistakes}・破損${crashes}${t}・${reason}`;}
+  function updateDuelPanel(){
+    const battle=state.playKind==='cpu'&&state.battle;els.duelPanel.hidden=!battle;if(!battle)return;const cpu=state.battle.cpu;
+    els.duelPlayerScore.textContent=state.score.toLocaleString('ja-JP');els.duelPlayerStatus.textContent=state.playerFinished?state.resultReason:`${state.correct}${state.mode==='words'?'/20':''}語`;
+    els.duelCpuName.textContent=`CPU Lv${state.cpuLevel}`;els.duelCpuScore.textContent=cpu.score.toLocaleString('ja-JP');els.duelCpuStatus.textContent=cpu.status;
+    els.duelCpuProgress.textContent=`${cpu.correct}${state.mode==='words'?'/20':''}語`;els.duelCpuLives.textContent=state.mode==='words'?'♥'.repeat(cpu.lives)+'♡'.repeat(MAX_LIVES-cpu.lives):'';els.duelCpuCrashes.textContent=`破損 ${cpu.crashes}`;
+    LETTERS.forEach(k=>{const el=els.cpuMiniKeyboard.querySelector(`[data-cpu-key="${k}"]`);if(!el)return;el.className='mini-key';const stage=cpu.health[k].stage;if(stage===1)el.classList.add('warm');if(stage===2)el.classList.add('danger');if(stage===3)el.classList.add('broken');});
+  }
+
   function endGame(reason) {
     if (!state.active) return;
     state.active = false; state.paused = false; stopGameLoop(); closeModals();
@@ -476,11 +737,14 @@
       const noCrash = state.crashes === 0 ? 3500 : 0;
       state.score += timeBonus + noCrash;
     }
-    saveScore(); renderResult(); showScreen('result'); beep('finish');
+    if (state.playKind === 'solo') saveScore();
+    renderResult(); showScreen('result'); beep('finish');
   }
 
   function renderResult() {
     const cleared = state.mode === 'words' && state.correct >= 20;
+    const battle = state.playKind === 'cpu';
+    els.resultRank.classList.toggle('battle-rank', battle);
     els.resultTitle.textContent = state.resultReason;
     els.resultMainLabel.textContent = 'SCORE';
     els.resultMainValue.textContent = state.score.toLocaleString('ja-JP');
@@ -488,12 +752,19 @@
     els.resultMistakes.textContent = state.mistakes;
     els.resultCrashes.textContent = state.crashes;
     els.resultIntegrity.textContent = `${state.finalIntegrity}%`;
-    const rank = calculateRank(); els.resultRank.textContent = rank;
-    const timeText = state.mode === 'words' ? `経過 ${state.elapsed.toFixed(2)}秒。` : '';
+    const rank = calculateRank(); els.resultRank.textContent = battle ? battleRankText() : rank;
+    const resultElapsed = battle ? state.playerFinishTime : state.elapsed;
+    const timeText = state.mode === 'words' ? `経過 ${resultElapsed.toFixed(2)}秒。` : '';
     let comment = state.crashes === 0 ? 'ノークラッシュ。キーボード管理が完璧です。' : state.crashes <= 2 ? '危険なキーを逃がしながら、さらに伸ばせそうです。' : '派手に壊れました。次は同じ母音の連続使用に注意。';
     if (!cleared && state.mode === 'words') comment = '5回の誤入力でゲームオーバー。読める語と、正確に打てる語の見極めが重要です。';
+    if (battle) comment = battleComment();
     els.resultComment.textContent = timeText + comment;
-    renderResultAnswers(!cleared && (state.resultReason === 'TIME UP' || state.resultReason === 'GAME OVER'));
+    const playerReason = battle ? state.playerResultReason : state.resultReason;
+    const showAnswers = (!cleared && (playerReason.includes('TIME UP') || playerReason.includes('GAME OVER'))) || (battle && state.mode === 'time');
+    renderResultAnswers(showAnswers);
+    renderBattleResult();
+    els.resultHighscoreButton.hidden = battle;
+    els.backButton.textContent = battle ? 'CPU戦設定へ戻る' : '設定へ戻る';
   }
 
   function renderResultAnswers(show) {
@@ -587,7 +858,10 @@
 
   async function shareResult() {
     const mode = state.mode === 'time' ? '30秒モード' : '20語モード';
-    const text = `漢字 de クラッシュキーボード\n${mode}・${LEVEL_LABELS[state.difficulty]}\nSCORE ${state.score.toLocaleString('ja-JP')}｜正解 ${state.correct}｜破損 ${state.crashes}\n読める。でも、そのキーはもう限界。`;
+    const versus = state.playKind === 'cpu' && state.battle
+      ? `\nCPU Lv${state.cpuLevel}戦 ${battleOutcomeLabel()}｜YOU ${state.score.toLocaleString('ja-JP')} - CPU ${state.battle.cpu.score.toLocaleString('ja-JP')}`
+      : '';
+    const text = `漢字 de クラッシュキーボード\n${mode}・${LEVEL_LABELS[state.difficulty]}${versus}\nSCORE ${state.score.toLocaleString('ja-JP')}｜正解 ${state.correct}｜破損 ${state.crashes}\n読める。でも、そのキーはもう限界。`;
     await shareTextOrCopy(text, els.shareButton, '結果を共有');
   }
 
@@ -660,8 +934,8 @@
   function downloadBlob(blob,name) { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
 
   function showScreen(name) {
-    [els.titleScreen,els.gameScreen,els.resultScreen,els.highscoreScreen].forEach(s=>s.classList.remove('active'));
-    ({title:els.titleScreen,game:els.gameScreen,result:els.resultScreen,highscore:els.highscoreScreen}[name]).classList.add('active');
+    [els.titleScreen,els.battleScreen,els.cpuSetupScreen,els.gameScreen,els.resultScreen,els.highscoreScreen].forEach(s=>s.classList.remove('active'));
+    ({title:els.titleScreen,battle:els.battleScreen,cpu:els.cpuSetupScreen,game:els.gameScreen,result:els.resultScreen,highscore:els.highscoreScreen}[name]).classList.add('active');
     window.scrollTo({top:0,behavior:'smooth'});
   }
   function openModal(modal) {
@@ -751,6 +1025,6 @@
   function storageSet(key, value) { try { window.localStorage.setItem(key, value); } catch {} }
   function escapeHtml(s) { return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
-  window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores });
+  window.KCK_DEBUG = Object.freeze({ readingToRomajiVariants, readingMatches, kanaToRomaji, romajiToHiragana, loadScores, hashString, mulberry32, getState:()=>state });
   init();
 })();
