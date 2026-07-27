@@ -123,14 +123,11 @@ legend { color: var(--muted); font-weight: 800; margin-bottom: 10px; font-size: 
 .legend span { display:flex; align-items:center; gap:5px; }
 .state-dot { width:10px; height:10px; border-radius:3px; background:#e9e7de; }
 .state-dot.warm { background:var(--yellow); }.state-dot.danger{background:var(--red)}.state-dot.broken{background:var(--broken)}
-.shift-status { color:var(--muted); font-size:.78rem; font-weight:800; }
-.shift-status.on { color:var(--accent); }
 .keyboard { display:flex; flex-direction:column; gap:7px; user-select:none; }
 .key-row { display:flex; justify-content:center; gap:6px; }
 .key { width:clamp(36px,6.3vw,68px); height:clamp(46px,5.2vw,60px); border-radius:9px; background:#edeae0; color:#161820; box-shadow:0 5px 0 #8b8d96; display:grid; place-items:center; font-weight:900; text-transform:uppercase; position:relative; transition:.18s; overflow:hidden; }
 .key.wide { width:clamp(82px,13vw,145px); }
 .key .alt { position:absolute; right:5px; top:3px; color:#157a5e; font-size:.65rem; opacity:0; }
-.keyboard.shift-on .key .alt { opacity:1; }
 .key.warm { background:var(--yellow); box-shadow:0 5px 0 #9b7412; }
 .key.danger { background:var(--red); color:#fff; box-shadow:0 5px 0 #922d36; }
 .key.danger::before,.key.danger::after { content:""; position:absolute; width:2px; height:52px; background:#5f121a; transform:rotate(35deg); }
@@ -164,7 +161,6 @@ legend { color: var(--muted); font-weight: 800; margin-bottom: 10px; font-size: 
 .tutorial-steps h3 { margin:2px 0 5px;font-size:1rem; }.tutorial-steps p{margin:0;color:var(--muted);line-height:1.65;font-size:.88rem}
 .tutorial-example { display:inline-flex;align-items:center;gap:12px;margin-top:8px;padding:7px 12px;border-radius:9px;background:#f5f2e9;color:#171820; }.tutorial-example span{font-family:serif;font-weight:900}.tutorial-example small{color:#8d3450}
 .modal-note { color:var(--muted);font-size:.75rem;border-top:1px solid var(--line);padding-top:14px; }
-.deadlock-icon { font-size:4rem;filter:grayscale(1); }.compact p{color:var(--muted)}
 .site-footer { min-height:52px;display:flex;align-items:center;justify-content:center;gap:14px;color:#73798a;font-size:.72rem;border-top:1px solid rgba(255,255,255,.06); }
 .site-footer button { border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer; }
 @media (max-width: 850px) {
@@ -177,3 +173,63 @@ legend { color: var(--muted); font-weight: 800; margin-bottom: 10px; font-size: 
   .input-row{grid-template-columns:1fr}.reroll-button{min-height:44px}.keyboard-zone{padding:10px 4px}.keyboard-head{padding:0 8px}.legend{gap:7px}.key-row{gap:3px}.key{width:9vw;height:43px;border-radius:6px;font-size:.75rem}.key.wide{width:19vw}.result-grid{grid-template-columns:1fr 1fr}.result-grid div:nth-child(2){border-right:0}.result-grid div:nth-child(-n+2){border-bottom:1px solid var(--line)}
 }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important} }
+
+/* v0.2.0: HP・終了時の読み・ローカルTOP5 */
+[hidden] { display: none !important; }
+.hud { grid-template-columns: 1fr 1.3fr 1fr 1fr 1.25fr 1fr; }
+.hud-lives strong { display:flex; gap:2px; font-size:1.05rem; line-height:1; }
+.heart { display:inline-block; transition:.18s; }
+.heart.alive { color:var(--red); filter:drop-shadow(0 0 5px rgba(255,93,104,.35)); }
+.heart.lost { color:#555b6b; transform:scale(.85); }
+.feedback.waiting { color:var(--yellow); }
+
+.result-answers { margin:22px 0; padding:18px; border:1px solid var(--line); border-radius:16px; background:rgba(0,0,0,.16); text-align:left; }
+.result-answers h3 { margin:0 0 4px; font-size:1rem; }
+.result-answers>p { margin:0 0 14px; color:var(--muted); font-size:.78rem; }
+.result-answer-list { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.result-answer-item { min-width:0; padding:14px; border-radius:13px; background:#f4f1e8; color:#191b22; }
+.result-answer-item>strong { display:block; margin-bottom:8px; font-family:"Yu Mincho","Hiragino Mincho ProN",serif; font-size:clamp(1.25rem,3vw,1.8rem); overflow-wrap:anywhere; }
+.result-answer-item ul { list-style:none; padding:0; margin:0; display:grid; gap:5px; }
+.result-answer-item li { display:flex; flex-direction:column; gap:2px; }
+.result-answer-item li span { font-size:.85rem; font-weight:800; }
+.result-answer-item code { color:#8d3450; font-size:.78rem; overflow-wrap:anywhere; }
+
+.setup-secondary { margin-top:12px; }
+.highscore-card { width:min(820px,100%); margin:0 auto; border-radius:28px; padding:clamp(22px,4vw,40px); }
+.highscore-card h2 { margin:5px 0; font-size:clamp(2rem,5vw,3rem); }
+.highscore-note { margin-top:0; color:var(--muted); }
+.highscore-filters { display:grid; grid-template-columns:.75fr 1.25fr; gap:22px; margin:26px 0 22px; }
+.highscore-filters fieldset { margin:0; }
+.compact-segmented span { min-height:58px; }
+.score-difficulty-grid span { min-height:58px; }
+.scoreboard-heading { display:flex; align-items:end; justify-content:space-between; gap:14px; padding:15px 2px 11px; border-bottom:1px solid var(--line); }
+.scoreboard-heading div { display:flex; flex-direction:column; }
+.scoreboard-heading span { color:var(--muted); font-size:.75rem; font-weight:800; letter-spacing:.08em; }
+.scoreboard-heading strong { color:var(--accent); font-size:1.35rem; }
+.highscore-list { list-style:none; counter-reset:none; margin:0; padding:0; display:grid; gap:9px; }
+.highscore-list li { display:grid; grid-template-columns:54px 1fr; align-items:center; min-height:78px; padding:10px 16px 10px 10px; border:1px solid var(--line); border-radius:14px; background:rgba(0,0,0,.14); }
+.highscore-list li:first-child { border-color:rgba(81,229,180,.7); background:rgba(81,229,180,.08); }
+.score-rank { width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:var(--panel-2); color:var(--accent); font-size:1.15rem; font-weight:1000; }
+.highscore-list li div { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.highscore-list strong { font-size:clamp(1.35rem,3vw,1.85rem); font-variant-numeric:tabular-nums; }
+.highscore-list small { color:var(--muted); text-align:right; }
+.highscore-empty { padding:38px; margin:0; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:14px; }
+.highscore-actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:20px; }
+.highscore-actions .text-button { text-decoration:none; border:1px solid var(--line); border-radius:14px; }
+
+/* 反転入力を廃止したため代替キー表示は使用しない */
+.key .alt { display:none !important; }
+
+@media (max-width:850px) {
+  .hud { grid-template-columns:repeat(5,1fr); }
+  .hud-main { grid-column:1/-1; }
+  .highscore-filters { grid-template-columns:1fr; }
+}
+@media (max-width:620px) {
+  .result-answer-list { grid-template-columns:1fr; }
+  .highscore-list li { grid-template-columns:46px 1fr; padding-right:10px; }
+  .highscore-list li div { display:block; }
+  .highscore-list small { display:block; margin-top:3px; text-align:left; }
+  .highscore-actions { grid-template-columns:1fr; }
+  .score-difficulty-grid { grid-template-columns:repeat(3,1fr); }
+}

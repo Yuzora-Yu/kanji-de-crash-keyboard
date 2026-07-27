@@ -49,6 +49,7 @@
             </div>
           </fieldset>
           <button id="startButton" class="primary-button" type="button">ゲーム開始 <span>Enter</span></button>
+          <button id="highscoreButton" class="secondary-button setup-secondary" type="button">ハイスコアを見る</button>
           <button id="tutorialButton" class="text-button" type="button">最初に遊び方を見る</button>
         </div>
 
@@ -64,6 +65,7 @@
           <div class="hud-main"><span id="hudLabel">残り時間</span><strong id="hudValue">30.0</strong></div>
           <div class="hud-item"><span>SCORE</span><strong id="hudScore">0</strong></div>
           <div class="hud-item"><span>CRASH</span><strong id="hudCrashes">0</strong></div>
+          <div id="hudLivesItem" class="hud-item hud-lives" hidden><span>HP</span><strong id="hudLives" aria-label="残りHP">♥♥♥♥♥</strong></div>
           <div class="hud-item"><span>BEST</span><strong id="hudBest">-</strong></div>
         </div>
 
@@ -86,7 +88,7 @@
               <span><i class="state-dot danger"></i>赤</span>
               <span><i class="state-dot broken"></i>破損</span>
             </div>
-            <div id="shiftStatus" class="shift-status">Shiftで反対側入力</div>
+            <div class="recovery-note">破損キーは10秒で復活</div>
           </div>
           <div id="keyboard" class="keyboard"></div>
         </section>
@@ -108,10 +110,56 @@
             <div><span>終了時健全率</span><strong id="resultIntegrity">100%</strong></div>
           </div>
           <p id="resultComment" class="result-comment"></p>
+          <section id="resultAnswers" class="result-answers" hidden>
+            <h3>終了時に表示されていた3語</h3>
+            <p>ひらがな読みと、入力できるローマ字表記の一例です。</p>
+            <div id="resultAnswerList" class="result-answer-list"></div>
+          </section>
           <div class="result-actions">
             <button id="retryButton" class="primary-button" type="button">もう一度 <span>Enter</span></button>
             <button id="shareButton" class="secondary-button" type="button">結果を共有</button>
+            <button id="resultHighscoreButton" class="secondary-button" type="button">ハイスコア</button>
             <button id="backButton" class="text-button" type="button">設定へ戻る</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="highscoreScreen" class="screen" aria-labelledby="highscoreTitle">
+        <div class="highscore-card panel">
+          <p class="eyebrow">LOCAL TOP 5</p>
+          <h2 id="highscoreTitle">ハイスコア</h2>
+          <p class="highscore-note">この端末・ブラウザに保存された記録です。</p>
+
+          <div class="highscore-filters">
+            <fieldset>
+              <legend>モード</legend>
+              <div class="segmented compact-segmented">
+                <label><input type="radio" name="scoreMode" value="time" checked><span><b>30秒</b><small>スコアアタック</small></span></label>
+                <label><input type="radio" name="scoreMode" value="words"><span><b>20語</b><small>タイム＋スコア</small></span></label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>難易度</legend>
+              <div class="difficulty-grid score-difficulty-grid">
+                <label><input type="radio" name="scoreDifficulty" value="beginner" checked><span>初級</span></label>
+                <label><input type="radio" name="scoreDifficulty" value="intermediate"><span>中級</span></label>
+                <label><input type="radio" name="scoreDifficulty" value="advanced"><span>上級</span></label>
+                <label><input type="radio" name="scoreDifficulty" value="expert"><span>超級</span></label>
+                <label><input type="radio" name="scoreDifficulty" value="oni"><span>鬼</span></label>
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="scoreboard-heading">
+            <div><span id="highscoreModeLabel">30秒モード</span><strong id="highscoreDifficultyLabel">初級</strong></div>
+            <span id="highscoreCount">0 / 5</span>
+          </div>
+          <ol id="highscoreList" class="highscore-list"></ol>
+          <p id="highscoreEmpty" class="highscore-empty">まだ記録がありません。</p>
+
+          <div class="highscore-actions">
+            <button id="shareHighscoresButton" class="primary-button" type="button">ランキング画像を共有</button>
+            <button id="highscoreBackButton" class="text-button" type="button">設定へ戻る</button>
           </div>
         </div>
       </section>
@@ -129,21 +177,17 @@
             <b>2</b><div><h3>同じキーを3判定連続で使うと破損</h3><p>1回目は黄色、2回目は赤くひび割れ、3回目で使用不能。正解した語で使わなかったキーは1段階回復します。</p></div>
           </article>
           <article>
-            <b>3</b><div><h3>壊れた文字は Shift＋反対側キー</h3><p>例：Aが壊れたら Shift＋L でAを入力。Shiftも使い続ければ壊れます。</p></div>
+            <b>3</b><div><h3>破損キーは10秒で復活</h3><p>30秒・20語のどちらでも同じです。20語モードでは、再抽選せず復活を待つ戦術も選べます。</p></div>
           </article>
           <article>
             <b>4</b><div><h3>ミスも摩耗する</h3><p>誤答では使ったキーだけ摩耗し、未使用キーは回復しません。Backspaceは文字キーを回復させず、Backspace自身が摩耗します。</p></div>
           </article>
+          <article>
+            <b>5</b><div><h3>20語モードは5ハート制</h3><p>誤入力するたびHPが1減り、5回目でゲームオーバーです。破損キーの復活を待つことはできます。</p></div>
+          </article>
         </div>
         <p class="modal-note">初級・中級などは本ゲーム独自の目安です。漢検の公式問題・公式級判定ではありません。</p>
         <button id="modalStartButton" class="primary-button" type="button">わかった</button>
-      </div>
-
-      <div id="deadlockModal" class="modal compact" role="dialog" aria-modal="true" aria-labelledby="deadlockTitle" hidden>
-        <div class="deadlock-icon">⌨</div>
-        <h2 id="deadlockTitle">入力できる語がない！</h2>
-        <p>現在の破損状態では、表示中の3語を完成できません。</p>
-        <button id="deadlockReroll" class="primary-button" type="button">最後の再抽選を使う</button>
       </div>
     </div>
 
