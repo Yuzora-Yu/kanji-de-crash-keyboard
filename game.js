@@ -244,25 +244,32 @@
 
   function submitInput() {
     if (!state.input) { flashInput('error'); beep('error'); return; }
-    const matched = state.words.find(w => w.readings.some(r => readingMatches(state.input, r)));
-    if (matched) correctAnswer(matched); else wrongAnswer();
+    let matched = null;
+    for (const word of state.words) {
+      const reading = word.readings.find(r => readingMatches(state.input, r));
+      if (reading) { matched = { word, reading }; break; }
+    }
+    if (matched) correctAnswer(matched.word, matched.reading); else wrongAnswer();
   }
 
-  function correctAnswer(word) {
+  function correctAnswer(word, matchedReading) {
     applyWear(state.pendingUsed);
     recoverUnusedKeys(state.wordUsed);
 
     const integrity = getIntegrity();
     const actualLevel = state.lastActualLevel;
-    const romanLen = readingToRomajiVariants(word.readings[0])[0].length;
+    // 入力方式の長短（shi/siなど）ではなく、正解した読みの標準ローマ字長で加点する。
+    const canonicalRomaji = kanaToRomaji(matchedReading);
+    const romanLen = canonicalRomaji.length;
+    const lengthBonus = romanLen * 12;
     const mult = LEVEL_MULTIPLIERS[actualLevel];
-    const gain = Math.round((100 + romanLen * 8 + integrity * 1.2 + (countBroken() === 0 ? 80 : 0)) * mult);
+    const gain = Math.round((100 + lengthBonus + integrity * 1.2 + (countBroken() === 0 ? 80 : 0)) * mult);
     state.score += gain;
     state.correct++;
     state.recent.push(word.word); if (state.recent.length > 24) state.recent.shift();
     state.input = ''; state.pendingUsed.clear(); state.wordUsed.clear();
     els.feedback.className = 'feedback ok';
-    els.feedback.textContent = `正解：${word.word}（${word.readings.join('／')}） +${gain}`;
+    els.feedback.textContent = `正解：${word.word}（${matchedReading}） +${gain}｜ローマ字${romanLen}字`;
     flashInput('success'); beep('correct');
     if (state.mode === 'words' && state.correct >= 20) { endGame('20語クリア'); return; }
     drawWords(); updateAll();
