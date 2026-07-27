@@ -1,1 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171923">
+  <meta name="description" content="漢字の読みを選んで打つ、キーボード破損型タイピングパズル。サーバー不要で遊べます。">
+  <title>漢字 de クラッシュキーボード</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button id="homeButton" class="icon-button" type="button" aria-label="タイトルへ戻る" title="タイトルへ戻る">⌂</button>
+      <div class="mini-title"><span>漢字 de</span> クラッシュキーボード</div>
+      <div class="top-actions">
+        <button id="soundButton" class="icon-button" type="button" aria-label="音声の切り替え" title="音声の切り替え">🔊</button>
+        <button id="helpButton" class="icon-button" type="button" aria-label="遊び方" title="遊び方">?</button>
+      </div>
+    </header>
 
+    <main>
+      <section id="titleScreen" class="screen active" aria-labelledby="gameTitle">
+        <div class="hero">
+          <div class="logo-key" aria-hidden="true"><span>漢</span><i></i></div>
+          <p class="eyebrow">KANJI × KEYBOARD SURVIVAL</p>
+          <h1 id="gameTitle">漢字 de<br><strong>クラッシュキーボード</strong></h1>
+          <p class="tagline">読める。でも、そのキーはもう限界。</p>
+        </div>
+
+        <div class="setup-panel panel">
+          <fieldset>
+            <legend>モード</legend>
+            <div class="segmented" id="modeSelector">
+              <label><input type="radio" name="mode" value="time" checked><span><b>30秒</b><small>時間内スコア</small></span></label>
+              <label><input type="radio" name="mode" value="words"><span><b>20語</b><small>完走タイム</small></span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>難易度</legend>
+            <div class="difficulty-grid" id="difficultySelector">
+              <label><input type="radio" name="difficulty" value="beginner" checked><span>初級<small>小学生程度</small></span></label>
+              <label><input type="radio" name="difficulty" value="intermediate"><span>中級<small>中学生程度</small></span></label>
+              <label><input type="radio" name="difficulty" value="advanced"><span>上級<small>高校生程度</small></span></label>
+              <label><input type="radio" name="difficulty" value="expert"><span>超級<small>準2級〜2級目安</small></span></label>
+              <label><input type="radio" name="difficulty" value="oni"><span>鬼<small>2級〜1級目安</small></span></label>
+            </div>
+          </fieldset>
+          <button id="startButton" class="primary-button" type="button">ゲーム開始 <span>Enter</span></button>
+          <button id="tutorialButton" class="text-button" type="button">最初に遊び方を見る</button>
+        </div>
+
+        <div class="title-footer">
+          <p>物理キーボード推奨・完全クライアントサイド</p>
+          <p class="data-note">収録語彙 <strong id="wordCount">531</strong>語</p>
+        </div>
+      </section>
+
+      <section id="gameScreen" class="screen" aria-label="ゲーム画面">
+        <div class="hud panel">
+          <div class="hud-item"><span>MODE</span><strong id="hudMode">30秒</strong></div>
+          <div class="hud-main"><span id="hudLabel">残り時間</span><strong id="hudValue">30.0</strong></div>
+          <div class="hud-item"><span>SCORE</span><strong id="hudScore">0</strong></div>
+          <div class="hud-item"><span>CRASH</span><strong id="hudCrashes">0</strong></div>
+          <div class="hud-item"><span>BEST</span><strong id="hudBest">-</strong></div>
+        </div>
+
+        <section class="word-zone" aria-label="問題">
+          <div class="difficulty-badge" id="currentDifficulty">初級</div>
+          <p class="instruction">表示された3語のうち、読めるものをローマ字入力して Enter</p>
+          <div id="wordCards" class="word-cards" aria-live="polite"></div>
+          <div class="input-row">
+            <div id="inputDisplay" class="input-display" aria-label="入力内容"><span class="placeholder">ここに入力</span><i class="caret"></i></div>
+            <button id="rerollButton" class="reroll-button" type="button"><span>↻</span> 再抽選 <b>1</b></button>
+          </div>
+          <div id="feedback" class="feedback" aria-live="assertive"></div>
+        </section>
+
+        <section class="keyboard-zone panel" aria-label="キーボード状態">
+          <div class="keyboard-head">
+            <div class="legend">
+              <span><i class="state-dot normal"></i>正常</span>
+              <span><i class="state-dot warm"></i>黄</span>
+              <span><i class="state-dot danger"></i>赤</span>
+              <span><i class="state-dot broken"></i>破損</span>
+            </div>
+            <div id="shiftStatus" class="shift-status">Shiftで反対側入力</div>
+          </div>
+          <div id="keyboard" class="keyboard"></div>
+        </section>
+      </section>
+
+      <section id="resultScreen" class="screen" aria-labelledby="resultTitle">
+        <div class="result-card panel">
+          <p class="eyebrow">RESULT</p>
+          <h2 id="resultTitle">ゲーム終了</h2>
+          <div id="resultRank" class="result-rank">B</div>
+          <div class="result-main">
+            <span id="resultMainLabel">SCORE</span>
+            <strong id="resultMainValue">0</strong>
+          </div>
+          <div class="result-grid">
+            <div><span>正解</span><strong id="resultCorrect">0</strong></div>
+            <div><span>誤判定</span><strong id="resultMistakes">0</strong></div>
+            <div><span>破損回数</span><strong id="resultCrashes">0</strong></div>
+            <div><span>終了時健全率</span><strong id="resultIntegrity">100%</strong></div>
+          </div>
+          <p id="resultComment" class="result-comment"></p>
+          <div class="result-actions">
+            <button id="retryButton" class="primary-button" type="button">もう一度 <span>Enter</span></button>
+            <button id="shareButton" class="secondary-button" type="button">結果を共有</button>
+            <button id="backButton" class="text-button" type="button">設定へ戻る</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="modalBackdrop" class="modal-backdrop" hidden>
+      <div id="helpModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+        <button class="modal-close" data-close-modal type="button" aria-label="閉じる">×</button>
+        <h2 id="helpTitle">遊び方</h2>
+        <div class="tutorial-steps">
+          <article>
+            <b>1</b><div><h3>3語から読める漢字を打つ</h3><p>どの語でも正解です。読みをローマ字で入力し、Enterで判定します。</p><div class="tutorial-example"><span>学校</span><small>gakkou</small></div></div>
+          </article>
+          <article>
+            <b>2</b><div><h3>同じキーを3判定連続で使うと破損</h3><p>1回目は黄色、2回目は赤くひび割れ、3回目で使用不能。正解した語で使わなかったキーは1段階回復します。</p></div>
+          </article>
+          <article>
+            <b>3</b><div><h3>壊れた文字は Shift＋反対側キー</h3><p>例：Aが壊れたら Shift＋L でAを入力。Shiftも使い続ければ壊れます。</p></div>
+          </article>
+          <article>
+            <b>4</b><div><h3>ミスも摩耗する</h3><p>誤答では使ったキーだけ摩耗し、未使用キーは回復しません。Backspaceは文字キーを回復させず、Backspace自身が摩耗します。</p></div>
+          </article>
+        </div>
+        <p class="modal-note">初級・中級などは本ゲーム独自の目安です。漢検の公式問題・公式級判定ではありません。</p>
+        <button id="modalStartButton" class="primary-button" type="button">わかった</button>
+      </div>
+
+      <div id="deadlockModal" class="modal compact" role="dialog" aria-modal="true" aria-labelledby="deadlockTitle" hidden>
+        <div class="deadlock-icon">⌨</div>
+        <h2 id="deadlockTitle">入力できる語がない！</h2>
+        <p>現在の破損状態では、表示中の3語を完成できません。</p>
+        <button id="deadlockReroll" class="primary-button" type="button">最後の再抽選を使う</button>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <button id="aboutButton" type="button">データ・ライセンス</button>
+      <span>© 2026 漢字 de クラッシュキーボード</span>
+    </footer>
+  </div>
+
+  <script src="data/words.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

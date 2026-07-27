@@ -1,0 +1,10 @@
+{
+  "name": "漢字 de クラッシュキーボード",
+  "short_name": "漢字deクラッシュ",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#11131b",
+  "theme_color": "#171923",
+  "lang": "ja",
+  "icons": [{"src":"assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

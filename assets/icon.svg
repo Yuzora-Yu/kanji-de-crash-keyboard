@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="26" fill="#1c202c"/>
+  <rect x="19" y="17" width="90" height="90" rx="17" fill="#f6f3ea" stroke="#ff5d68" stroke-width="7"/>
+  <text x="64" y="82" text-anchor="middle" font-size="61" font-family="serif" font-weight="bold" fill="#171923">漢</text>
+  <path d="M48 22l12 35-9 18 22 31M83 18L70 49l10 20-22 38" fill="none" stroke="#ff5d68" stroke-width="5" stroke-linecap="round"/>
+</svg>
